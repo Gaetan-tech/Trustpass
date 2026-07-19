@@ -96,7 +96,7 @@ export function CheckoutModal({ listing, onClose }: Props) {
             <div className="relative h-28 overflow-hidden bg-carbon">
               <img
                 src={eventPhoto(listing.event, 640)}
-                alt={`Photo de concert — ${listing.event.name}`}
+                alt=""
                 className="absolute inset-0 h-full w-full object-cover grayscale-[15%]"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-carbon/70 to-transparent" />

@@ -41,6 +41,9 @@ export function ScanPage() {
             onChange={(e) => setQr(e.target.value)}
             className="input-dark mt-1 font-mono"
             placeholder="TP.…"
+            // Écran de contrôle d'accès à usage unique (scan en rafale) : l'autofocus
+            // est un choix UX délibéré pour enchaîner les validations sans clic.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
           />
         </label>

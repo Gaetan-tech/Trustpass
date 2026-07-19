@@ -38,8 +38,12 @@ frontend/test-results/
 frontend/blob-report/
 frontend/.playwright/
 
-# Docs
-docs/
+# Docs internes ignorées, SAUF les livrables de certification (jury)
+docs/*
+!docs/ACCESSIBILITE.md
+!docs/CAHIER_DE_RECETTES.md
+!docs/MANUEL_UTILISATEUR.md
+!docs/MANUEL_MISE_A_JOUR.md
 
 # Claude Code & doc projet
 .claude/

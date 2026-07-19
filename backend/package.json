@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
@@ -25,8 +27,8 @@
     "@prisma/client": "^5.20.0",
     "argon2": "^0.41.1",
     "bullmq": "^5.20.0",
-    "dotenv": "^16.4.5",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "express-rate-limit": "^7.4.0",
     "helmet": "^8.0.0",
@@ -39,17 +41,20 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@testcontainers/postgresql": "^10.13.0",
+    "@testcontainers/redis": "^10.13.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.7.0",
     "eslint": "^9.12.0",
+    "globals": "^17.7.0",
     "prisma": "^5.20.0",
     "supertest": "^7.0.0",
-    "@testcontainers/postgresql": "^10.13.0",
-    "@testcontainers/redis": "^10.13.0",
     "tsx": "^4.19.1",
     "typescript": "^5.6.2",
+    "typescript-eslint": "^8.64.0",
     "vitest": "^2.1.2"
   }
 }

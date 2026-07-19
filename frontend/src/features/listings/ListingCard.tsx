@@ -35,7 +35,7 @@ export function ListingCard({ listing, onBuy }: Props) {
       <div className="relative h-32 overflow-hidden bg-carbon">
         <img
           src={bg}
-          alt={`Photo de concert — ${listing.event.name}`}
+          alt=""
           className="photo-mono absolute inset-0 h-full w-full object-cover group-hover:scale-105"
           onError={(e) => {
             e.currentTarget.style.display = 'none';

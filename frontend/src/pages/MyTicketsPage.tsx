@@ -95,7 +95,7 @@ function TicketCard({ ticket, index, onPreview }: { ticket: Ticket; index: numbe
       <div className="relative h-24 overflow-hidden bg-carbon">
         <img
           src={eventPhoto(ticket.event, 640)}
-          alt={`Photo de concert — ${ticket.event.name}`}
+          alt=""
           className="photo-mono absolute inset-0 h-full w-full object-cover group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-carbon/70 to-transparent" />
