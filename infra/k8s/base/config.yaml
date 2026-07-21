@@ -1,0 +1,20 @@
+# Configuration non sensible du backend (surchargée par overlay).
+# Les secrets (DATABASE_URL, JWT_*, POSTGRES_PASSWORD) sont dans le Secret
+# `trustpass-secrets`, créé au déploiement (voir infra/k8s/create-secrets.sh).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trustpass-config
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  REDIS_URL: "redis://redis:6379"
+  RESERVATION_TTL_SECONDS: "600"
+  # Paiement en mode simulé (Stripe décommissionné) :
+  STRIPE_SECRET_KEY: ""
+  STRIPE_WEBHOOK_SECRET: ""
+  # Emails désactivés en démo :
+  RESEND_API_KEY: ""
+  EMAIL_FROM: "TrustPass <noreply@trustpass.dev>"
+  # Origine CORS — surchargée par chaque overlay d'environnement :
+  CORS_ORIGIN: "http://localhost"

@@ -1,0 +1,71 @@
+name: CD
+
+# Déploiement continu TrustPass (C2.2.4).
+#   push develop -> staging
+#   push main    -> preprod (auto) -> prod (avec approbation)
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # --- Construction et publication des images sur l'ACR --------------------
+  build-push:
+    name: Build & push images (ACR)
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: Connexion Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Connexion ACR
+        run: az acr login -n ${{ vars.ACR_NAME }}
+      - name: Build & push backend
+        run: |
+          IMG=${{ vars.ACR_LOGIN_SERVER }}/trustpass-backend:${{ steps.meta.outputs.tag }}
+          docker build -t "$IMG" backend
+          docker push "$IMG"
+      - name: Build & push frontend
+        run: |
+          IMG=${{ vars.ACR_LOGIN_SERVER }}/trustpass-frontend:${{ steps.meta.outputs.tag }}
+          docker build -t "$IMG" frontend
+          docker push "$IMG"
+
+  # --- Déploiements par environnement --------------------------------------
+  staging:
+    needs: build-push
+    if: github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: staging
+      image_tag: ${{ needs.build-push.outputs.tag }}
+    secrets: inherit
+
+  preprod:
+    needs: build-push
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: preprod
+      image_tag: ${{ needs.build-push.outputs.tag }}
+    secrets: inherit
+
+  prod:
+    needs: [build-push, preprod]
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: prod
+      image_tag: ${{ needs.build-push.outputs.tag }}
+    secrets: inherit

@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Ressources communes à tous les environnements.
+resources:
+  - config.yaml
+  - postgres.yaml
+  - redis.yaml
+  - backend.yaml
+  - frontend.yaml
+  - ingress.yaml
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/part-of: trustpass
+
+# Images par défaut (remplacées par chaque overlay avec l'ACR + le tag).
+images:
+  - name: trustpass-backend
+    newName: trustpass-backend
+    newTag: latest
+  - name: trustpass-frontend
+    newName: trustpass-frontend
+    newTag: latest

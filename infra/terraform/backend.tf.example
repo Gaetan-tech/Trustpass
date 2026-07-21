@@ -1,0 +1,16 @@
+# State distant (recommandé en équipe). Copier en backend.tf après avoir créé
+# le Storage Account, puis `terraform init -migrate-state`.
+#
+# terraform {
+#   backend "azurerm" {
+#     resource_group_name  = "tp-rg-tfstate"
+#     storage_account_name = "tptfstate<suffixe>"
+#     container_name       = "tfstate"
+#     key                  = "shared.tfstate"
+#   }
+# }
+#
+# Création préalable :
+#   az group create -n tp-rg-tfstate -l francecentral
+#   az storage account create -n tptfstate<suffixe> -g tp-rg-tfstate -l francecentral --sku Standard_LRS
+#   az storage container create -n tfstate --account-name tptfstate<suffixe>

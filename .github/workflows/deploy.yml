@@ -1,0 +1,60 @@
+name: Deploy (réutilisable)
+
+# Workflow réutilisable : déploie un environnement (namespace) sur l'AKS partagé.
+# Appelé par cd.yml pour staging / preprod / prod.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      image_tag:
+        required: true
+        type: string
+
+permissions:
+  id-token: write # OIDC vers Azure (pas de secret longue durée)
+  contents: read
+
+jobs:
+  deploy:
+    name: Déploiement ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }} # gates d'approbation configurables (prod)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Connexion Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Identifiants AKS
+        run: az aks get-credentials -g ${{ vars.AKS_RESOURCE_GROUP }} -n ${{ vars.AKS_NAME }} --overwrite-existing
+
+      - name: Namespace + secrets applicatifs
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+        run: bash infra/k8s/create-secrets.sh ${{ inputs.environment }}
+
+      - name: Installer kustomize
+        run: |
+          curl -sfLo /tmp/kustomize.tar.gz https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz
+          tar -xzf /tmp/kustomize.tar.gz -C /tmp && sudo mv /tmp/kustomize /usr/local/bin/
+
+      - name: Déployer (Kustomize)
+        working-directory: infra/k8s/overlays/${{ inputs.environment }}
+        run: |
+          kustomize edit set image \
+            trustpass-backend=${{ vars.ACR_LOGIN_SERVER }}/trustpass-backend:${{ inputs.image_tag }} \
+            trustpass-frontend=${{ vars.ACR_LOGIN_SERVER }}/trustpass-frontend:${{ inputs.image_tag }}
+          kustomize build . | kubectl apply -f -
+
+      - name: Attendre le rollout
+        run: |
+          kubectl -n ${{ inputs.environment }} rollout status deploy/backend --timeout=180s
+          kubectl -n ${{ inputs.environment }} rollout status deploy/frontend --timeout=120s
