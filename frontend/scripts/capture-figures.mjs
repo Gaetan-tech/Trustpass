@@ -11,7 +11,10 @@ const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'captures'
 mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const page = await browser.newPage({
+  viewport: { width: 1920, height: 1080 },
+  deviceScaleFactor: 2, // rendu net (résolution ×2)
+});
 
 // Connexion (organisateur : accès marketplace, vendre, dashboard, maquette)
 await page.goto(`${BASE}/login`);
@@ -22,7 +25,7 @@ await page.waitForURL(`${BASE}/`);
 
 const shot = async (name) => {
   await page.waitForTimeout(2500); // laisse finir les animations d'entrée + images
-  await page.screenshot({ path: join(OUT, name), fullPage: false });
+  await page.screenshot({ path: join(OUT, name), fullPage: true }); // page entière (scroll complet)
   console.log('OK', name);
 };
 
