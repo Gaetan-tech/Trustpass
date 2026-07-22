@@ -1,7 +1,7 @@
 # Manuel de mise à jour & maintenance — TrustPass (C2.4.1)
 
 > Procédures pour **faire évoluer** l'application en toute sécurité : livraison d'une nouvelle
-> version, migrations de base, mise à jour des dépendances, retour arrière.
+> version, synchronisation du schéma de base, mise à jour des dépendances, retour arrière.
 > Public : équipe technique / mainteneur. Voir aussi `docs/DEPLOYMENT.md` (installation)
 > et `docs/MANUEL_UTILISATEUR.md` (usage).
 
@@ -37,25 +37,26 @@ git push -u origin feat/ma-fonctionnalite
 
 Après **CI verte** et revue, fusionner la PR dans `main`.
 
-## 3. Migrations de base de données (Prisma)
+## 3. Synchronisation du schéma de base (Prisma)
 
-Le schéma est décrit dans `backend/prisma/schema.prisma`.
+Le schéma est décrit dans `backend/prisma/schema.prisma`. Le projet synchronise ce schéma
+avec la base via **`prisma db push`** (pas de dossier de migrations versionnées à ce stade).
 
-**En développement** (créer/appliquer une migration après modification du schéma) :
+**En développement / déploiement** (appliquer le schéma à la base de l'environnement) :
 ```bash
 cd backend
-npx prisma migrate dev --name description_du_changement
+npx prisma db push        # crée/aligne les tables sur le schéma
+npx prisma generate       # régénère le client Prisma
 ```
+C'est également ce que fait l'initContainer `db-migrate` des déploiements Kubernetes
+(`infra/k8s/base/backend.yaml`).
 
-**En production / pré-production** (appliquer les migrations existantes, sans en créer) :
-```bash
-cd backend
-npx prisma migrate deploy
-npx prisma generate   # régénère le client Prisma
-```
-
-> ⚠️ **Toujours sauvegarder la base avant `migrate deploy`.**
-> Les migrations sont **additives et ordonnées** ; ne jamais éditer une migration déjà appliquée.
+> ⚠️ **Toujours sauvegarder la base avant un `db push` en production** (`pg_dump`).
+> `db push` peut être destructif si le schéma retire des colonnes : vérifier le diff annoncé.
+>
+> **Évolution recommandée** : passer à des **migrations versionnées** (`prisma migrate dev`
+> en développement → `prisma migrate deploy` en production) dès qu'un historique de schéma
+> reproductible est requis.
 
 ## 4. Mise à jour des dépendances
 
@@ -95,8 +96,8 @@ cd frontend && npm ci && npm run build                          # -> dist/ (stat
 
 - **Code** : `git revert <commit>` (préféré) puis nouvelle livraison ; ou redéploiement du build
   de la version précédente.
-- **Base** : restaurer la sauvegarde prise avant la migration. Prévoir une migration inverse
-  si la structure a changé de façon non rétrocompatible.
+- **Base** : restaurer la sauvegarde prise avant la synchronisation du schéma. Prévoir un schéma
+  inverse si la structure a changé de façon non rétrocompatible.
 - Après rollback : **rejouer la recette** (`docs/CAHIER_DE_RECETTES.md`).
 
 ## 8. Checklist avant chaque mise en production
