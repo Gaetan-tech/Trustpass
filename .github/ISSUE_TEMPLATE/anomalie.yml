@@ -1,0 +1,66 @@
+# Gabarit de consignation d'une anomalie de production — TrustPass (BLOC 4, §4.1.2)
+# Un rapport sans étapes de reproduction ne peut être ni corrigé ni vérifié :
+# le gabarit impose donc les informations minimales, reproduction en tête.
+name: "Anomalie de production"
+description: "Consigner une anomalie détectée en production (registre Maintenance)."
+title: "[AN] "
+labels: ["anomalie"]
+body:
+  - type: input
+    id: titre
+    attributes:
+      label: "Titre factuel (symptôme observable)"
+      placeholder: "Commandes payées non transférées lors du pic d'ouverture des ventes"
+    validations: { required: true }
+
+  - type: dropdown
+    id: severite
+    attributes:
+      label: "Sévérité"
+      options: ["P1 (critique)", "P2 (majeur)", "P3 (capacité)", "P4 (mineur)"]
+    validations: { required: true }
+
+  - type: input
+    id: environnement
+    attributes:
+      label: "Environnement + version déployée"
+      placeholder: "prod (AKS) — v1.4.0"
+    validations: { required: true }
+
+  - type: textarea
+    id: symptome
+    attributes:
+      label: "Comportement observé / comportement attendu"
+    validations: { required: true }
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: "Étapes de reproduction (numérotées, jeu de données, compte utilisé)"
+    validations: { required: true }
+
+  - type: textarea
+    id: preuves
+    attributes:
+      label: "Preuves"
+      description: "requestId, extraits de journaux, capture, lien Grafana"
+    validations: { required: false }
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: "Impact"
+      description: "Nombre d'utilisateurs, durée, conséquence métier chiffrée"
+    validations: { required: true }
+
+  - type: textarea
+    id: analyse
+    attributes:
+      label: "Analyse de cause racine (complétée après investigation)"
+    validations: { required: false }
+
+  - type: textarea
+    id: preconisation
+    attributes:
+      label: "Correctif envisagé et alternatives écartées"
+    validations: { required: false }

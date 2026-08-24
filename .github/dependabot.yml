@@ -1,0 +1,62 @@
+# Politique de mise à jour des dépendances — TrustPass (BLOC 4, §3.1.3)
+# Le partage automatique/manuel est fondé sur le risque : plus une dépendance
+# touche à l'argent, l'identité ou la cryptographie, plus la montée est supervisée.
+version: 2
+updates:
+  # --- Dépendances applicatives + outillage backend --------------------------
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:            # regroupées en une seule PR
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+    ignore:
+      # Dépendances sensibles : montée majeure toujours manuelle (revue à deux)
+      - dependency-name: "stripe"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "argon2"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "jsonwebtoken"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+    labels: ["deps", "maintenance"]
+
+  # --- Dépendances + outillage frontend --------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+    labels: ["deps", "maintenance"]
+
+  # --- Images de base des conteneurs -----------------------------------------
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule: { interval: "weekly" }
+    labels: ["deps", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/frontend"
+    schedule: { interval: "weekly" }
+    labels: ["deps", "docker"]
+
+  # --- Actions de la chaîne d'intégration ------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule: { interval: "monthly" }
+    labels: ["deps", "ci"]

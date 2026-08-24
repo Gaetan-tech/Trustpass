@@ -1,0 +1,67 @@
+# Routage et escalade Alertmanager — TrustPass (BLOC 4, §3.2.6)
+# Le signalement suit la sévérité, et elle seule : P1 réveille (Slack + appel),
+# P3 attend le jour ouvré, P4 s'accumule dans un rapport hebdomadaire. Une P1/P2
+# non acquittée est réémise (escalade). Les alertes de même cause sont regroupées.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-trustpass
+  namespace: monitoring
+type: Opaque
+stringData:
+  alertmanager.yaml: |
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'namespace']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      receiver: slack-alertes
+      routes:
+        - matchers: [ severity="P1" ]
+          receiver: astreinte-telephone
+          group_wait: 0s
+          repeat_interval: 15m      # relance jusqu'à acquittement
+          continue: true
+        - matchers: [ severity="P2" ]
+          receiver: slack-astreinte
+          repeat_interval: 30m
+        - matchers: [ severity="P3" ]
+          receiver: slack-capacite
+        - matchers: [ severity="P4" ]
+          receiver: courriel-hebdomadaire
+
+    receivers:
+      - name: slack-alertes
+        slack_configs:
+          - channel: '#trustpass-alerts'
+            send_resolved: true
+            title: '[{{ .CommonLabels.severity }}] {{ .CommonLabels.alertname }}'
+            text: "{{ range .Alerts }}{{ .Annotations.summary }}\nRunbook: {{ .Annotations.runbook }}\n{{ end }}"
+      - name: slack-astreinte
+        slack_configs:
+          - channel: '#trustpass-alerts'
+            send_resolved: true
+            title: '[P2] {{ .CommonLabels.alertname }}'
+            text: "<!subteam^ASTREINTE> {{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}"
+      - name: slack-capacite
+        slack_configs:
+          - channel: '#trustpass-capacite'
+            send_resolved: false
+      - name: astreinte-telephone
+        # Déclenche l'appel via le webhook du fournisseur d'astreinte, et crée
+        # une issue GitHub préremplie (intitulé, horodatage, lien tableau de bord).
+        webhook_configs:
+          - url: 'http://oncall-bridge.monitoring.svc:9093/trigger'
+            send_resolved: true
+      - name: courriel-hebdomadaire
+        email_configs:
+          - to: 'maintenance@trustpass.dev'
+            send_resolved: false
+
+    # Silence temporaire (justifié et daté) posable pendant une intervention planifiée.
+    inhibit_rules:
+      - source_matchers: [ severity="P1" ]
+        target_matchers: [ severity=~"P2|P3" ]
+        equal: ['namespace']

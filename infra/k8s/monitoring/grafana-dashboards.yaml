@@ -1,0 +1,60 @@
+# Tableaux de bord Grafana — TrustPass (BLOC 4, §3.2.7)
+# Quatre tableaux provisionnés en ConfigMap (sidecar Grafana). Chacun répond à
+# une question d'exploitation. JSON volontairement compact (panneaux essentiels).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trustpass-grafana-dashboards
+  namespace: monitoring
+  labels: { grafana_dashboard: "1" }
+data:
+  01-sante-plateforme.json: |
+    {
+      "title": "Santé plateforme", "uid": "tp-sante", "schemaVersion": 39, "version": 1,
+      "panels": [
+        {"type":"stat","title":"Disponibilité (sonde synthétique)","gridPos":{"h":4,"w":6,"x":0,"y":0},
+         "targets":[{"expr":"avg(trustpass_synthetic_up)"}]},
+        {"type":"timeseries","title":"Latence p95 par route","gridPos":{"h":8,"w":12,"x":6,"y":0},
+         "targets":[{"expr":"histogram_quantile(0.95, sum(rate(trustpass_http_request_duration_seconds_bucket[5m])) by (le,route))"}]},
+        {"type":"timeseries","title":"Taux d'erreur 5xx","gridPos":{"h":8,"w":6,"x":0,"y":4},
+         "targets":[{"expr":"sum(rate(trustpass_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(trustpass_http_requests_total[5m]))"}]},
+        {"type":"stat","title":"Réplicas prêts","gridPos":{"h":4,"w":6,"x":18,"y":0},
+         "targets":[{"expr":"sum(up{job=\"trustpass-api\"})"}]}
+      ]
+    }
+  02-tunnel-achat.json: |
+    {
+      "title": "Tunnel d'achat", "uid": "tp-tunnel", "schemaVersion": 39, "version": 1,
+      "panels": [
+        {"type":"timeseries","title":"Commandes (succès / échec)","gridPos":{"h":8,"w":12,"x":0,"y":0},
+         "targets":[{"expr":"sum(rate(trustpass_checkout_total[5m])) by (result)"}]},
+        {"type":"stat","title":"Taux de réussite","gridPos":{"h":4,"w":6,"x":12,"y":0},
+         "targets":[{"expr":"sum(rate(trustpass_checkout_total{result=\"success\"}[10m])) / sum(rate(trustpass_checkout_total[10m]))"}]},
+        {"type":"timeseries","title":"Délai paiement → billet (p95)","gridPos":{"h":8,"w":12,"x":0,"y":8},
+         "targets":[{"expr":"histogram_quantile(0.95, sum(rate(trustpass_transfer_delay_seconds_bucket[10m])) by (le))"}]},
+        {"type":"stat","title":"Commandes payées non transférées","gridPos":{"h":4,"w":6,"x":12,"y":4},
+         "targets":[{"expr":"trustpass_orders_paid_not_transferred"}]}
+      ]
+    }
+  03-files-workers.json: |
+    {
+      "title": "Files et workers", "uid": "tp-files", "schemaVersion": 39, "version": 1,
+      "panels": [
+        {"type":"timeseries","title":"Profondeur des files","gridPos":{"h":8,"w":12,"x":0,"y":0},
+         "targets":[{"expr":"trustpass_queue_depth"}]},
+        {"type":"timeseries","title":"Âge de la plus ancienne tâche","gridPos":{"h":8,"w":12,"x":12,"y":0},
+         "targets":[{"expr":"trustpass_queue_oldest_job_seconds"}]},
+        {"type":"stat","title":"Réservations expirées non libérées","gridPos":{"h":4,"w":6,"x":0,"y":8},
+         "targets":[{"expr":"trustpass_stale_reservations"}]}
+      ]
+    }
+  04-dependances-tierces.json: |
+    {
+      "title": "Dépendances tierces", "uid": "tp-deps", "schemaVersion": 39, "version": 1,
+      "panels": [
+        {"type":"timeseries","title":"Webhooks Stripe (ok / error / replayed)","gridPos":{"h":8,"w":12,"x":0,"y":0},
+         "targets":[{"expr":"sum(rate(trustpass_webhook_events_total[5m])) by (result)"}]},
+        {"type":"timeseries","title":"Envois de courriels (résultat)","gridPos":{"h":8,"w":12,"x":12,"y":0},
+         "targets":[{"expr":"sum(rate(trustpass_email_send_total[5m])) by (result)"}]}
+      ]
+    }

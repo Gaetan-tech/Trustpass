@@ -1,0 +1,96 @@
+# Règles d'alerte Prometheus — TrustPass (BLOC 4, §3.2.5)
+# Versionnées avec l'infrastructure : relisibles, testables, tout changement de
+# seuil justifié. Chaque règle combine condition, fenêtre d'observation (for) et
+# sévérité (label), qui détermine le canal et le délai de prise en charge.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: trustpass-alerts
+  namespace: prod
+  labels: { app: trustpass, role: alert-rules }
+spec:
+  groups:
+    # --- Signaux métier (pannes silencieuses invisibles au taux d'erreur HTTP) -
+    - name: trustpass-metier
+      rules:
+        - alert: PaiementsNonTransferes
+          expr: trustpass_orders_paid_not_transferred > 3
+          for: 2m
+          labels: { severity: P1, equipe: backend }
+          annotations:
+            summary: "Commandes payées sans transfert de billet"
+            runbook: "docs/runbooks/paiements-non-transferes.md"
+        - alert: TunnelAchatCasse
+          expr: |
+            sum(rate(trustpass_checkout_total{result="failed"}[10m]))
+              / sum(rate(trustpass_checkout_total[10m])) > 0.05
+          for: 10m
+          labels: { severity: P1, equipe: backend }
+          annotations:
+            summary: "Taux d'échec du tunnel d'achat > 5 %"
+        - alert: FileCourrielsEnRetard
+          expr: trustpass_queue_oldest_job_seconds{queue="emails"} > 300
+          for: 5m
+          labels: { severity: P2, equipe: backend }
+          annotations:
+            summary: "File des courriels de confirmation en retard"
+            runbook: "docs/runbooks/courriels-non-recus.md"
+        - alert: WebhooksEnEchec
+          expr: |
+            sum(rate(trustpass_webhook_events_total{result="error"}[5m]))
+              / sum(rate(trustpass_webhook_events_total[5m])) > 0.02
+          for: 5m
+          labels: { severity: P2, equipe: backend }
+          annotations: { summary: "Traitement des webhooks Stripe en échec > 2 %" }
+        - alert: ReservationsBloquees
+          expr: trustpass_stale_reservations > 20
+          for: 5m
+          labels: { severity: P2, equipe: backend }
+          annotations: { summary: "Réservations expirées non libérées (annonces invendables)" }
+
+    # --- Signaux techniques (santé de l'infrastructure et de l'API) ------------
+    - name: trustpass-technique
+      rules:
+        - alert: APIInjoignable
+          expr: up{job="trustpass-api"} == 0 or absent(up{job="trustpass-api"})
+          for: 2m
+          labels: { severity: P1, equipe: infra }
+          annotations: { summary: "API injoignable : aucun réplica prêt" }
+        - alert: TauxErreurServeur
+          expr: |
+            sum(rate(trustpass_http_requests_total{status=~"5.."}[5m]))
+              / sum(rate(trustpass_http_requests_total[5m])) > 0.01
+          for: 5m
+          labels: { severity: P2, equipe: backend }
+          annotations: { summary: "Taux d'erreur 5xx > 1 % sur 5 min" }
+        - alert: LatenceDegradee
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(trustpass_http_request_duration_seconds_bucket[10m])) by (le)) > 2
+          for: 10m
+          labels: { severity: P2, equipe: backend }
+          annotations: { summary: "Latence p95 globale > 2 s sur 10 min" }
+        - alert: SaturationRessources
+          expr: |
+            max(container_memory_working_set_bytes{container="backend"})
+              / max(kube_pod_container_resource_limits{container="backend",resource="memory"}) > 0.8
+          for: 15m
+          labels: { severity: P3, equipe: infra }
+          annotations: { summary: "Mémoire > 80 % sur 15 min (anticipation capacité)" }
+        - alert: PoolConnexionsSature
+          expr: trustpass_db_pool_in_use / trustpass_db_pool_size > 0.8
+          for: 10m
+          labels: { severity: P3, equipe: backend }
+          annotations: { summary: "Pool de connexions Prisma > 80 % (précurseur AN-2026-017)" }
+        - alert: CertificatTLSExpire
+          expr: (trustpass_tls_cert_expiry_seconds - time()) < 15 * 24 * 3600
+          labels: { severity: P3, equipe: infra }
+          annotations: { summary: "Certificat TLS expire dans moins de 15 jours" }
+
+    # --- Sécurité --------------------------------------------------------------
+    - name: trustpass-securite
+      rules:
+        - alert: VulnerabiliteNonTraitee
+          expr: trustpass_open_high_cve_age_hours > 72
+          labels: { severity: P4, equipe: securite }
+          annotations: { summary: "CVE élevée ouverte depuis plus de 72 h (cf. §3.1.5)" }

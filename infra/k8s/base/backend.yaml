@@ -48,18 +48,22 @@ spec:
                 secretKeyRef:
                   name: trustpass-secrets
                   key: JWT_REFRESH_SECRET
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 10
-            periodSeconds: 10
+          # Séparation liveness/readiness (BLOC 4, §3.2.4) :
+          # /live ne dépend que du processus ; /ready interroge les dépendances.
           livenessProbe:
             httpGet:
-              path: /health
+              path: /api/v1/live
               port: 3000
-            initialDelaySeconds: 20
-            periodSeconds: 20
+            initialDelaySeconds: 15   # laisse le temps au démarrage (validation Zod, Prisma)
+            periodSeconds: 10
+            failureThreshold: 3       # ~30 s avant redémarrage
+          readinessProbe:
+            httpGet:
+              path: /api/v1/ready
+              port: 3000
+            periodSeconds: 5
+            failureThreshold: 2       # retrait rapide du trafic
+            successThreshold: 1
           resources:
             requests:
               cpu: 50m
