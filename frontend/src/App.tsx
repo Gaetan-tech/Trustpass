@@ -58,7 +58,7 @@ export function App() {
             <NavLink to="/">Marketplace</NavLink>
             {user && <NavLink to="/tickets">Mes billets</NavLink>}
             {user && <NavLink to="/sell">Vendre</NavLink>}
-            <NavLink to="/mockup">Maquette</NavLink>
+            {user?.role === 'organizer' && <NavLink to="/mockup">Maquette</NavLink>}
             {user?.role === 'organizer' && <NavLink to="/organizer">Organisateur</NavLink>}
             {user?.role === 'controller' && <NavLink to="/scan">Contrôle</NavLink>}
           </div>
@@ -120,7 +120,9 @@ export function App() {
           <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm text-white/60">
             <Link to="/" className="transition-colors hover:text-accent">Marketplace</Link>
             <Link to="/sell" className="transition-colors hover:text-accent">Vendre</Link>
-            <Link to="/mockup" className="transition-colors hover:text-accent">Maquette</Link>
+            {user?.role === 'organizer' && (
+              <Link to="/mockup" className="transition-colors hover:text-accent">Maquette</Link>
+            )}
             <span className="text-white/30">© {new Date().getFullYear()} TrustPass</span>
           </div>
         </div>
