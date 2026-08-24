@@ -24,6 +24,6 @@ export const ticketsController = {
 
   async validate(req: Request, res: Response) {
     const { qrCode } = validateQrSchema.parse(req.body);
-    res.status(200).json(await ticketsService.validate(qrCode));
+    res.status(200).json(await ticketsService.validate(qrCode, req.user!.id));
   },
 };

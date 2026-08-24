@@ -68,6 +68,8 @@ model User {
   role            UserRole  @default(buyer)
   emailVerifiedAt DateTime? @map("email_verified_at")
   stripeAccountId String?   @map("stripe_account_id")
+  // Contrôleur créé par un organisateur : le rattache à celui-ci (scoping des scans).
+  managedByOrganizerId String? @map("managed_by_organizer_id")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
@@ -77,6 +79,8 @@ model User {
   listings      Listing[]      @relation("SellerListings")
   orders        Order[]        @relation("BuyerOrders")
   auditLogs     AuditLog[]
+  managedBy     User?          @relation("OrganizerControllers", fields: [managedByOrganizerId], references: [id])
+  controllers   User[]         @relation("OrganizerControllers")
 
   @@map("users")
 }
@@ -265,7 +269,7 @@ model AuditLog {
   metadata   Json?
   createdAt  DateTime    @default(now()) @map("created_at")
 
-  actor User? @relation(fields: [actorId], references: [id])
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([targetType, targetId])
   @@index([actorId])

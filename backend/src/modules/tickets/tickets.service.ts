@@ -146,9 +146,25 @@ export const ticketsService = {
 
   // US-7.1 — validation à l'entrée. Renvoie toujours 200 avec un verdict, et — dès que
   // le billet est connu — le porteur courant + l'historique des possesseurs (US-7.2).
-  async validate(qrCode: string) {
+  async validate(qrCode: string, controllerId?: string) {
     const ticket = await prisma.ticket.findUnique({ where: { qrCode }, include: { event: true } });
     if (!ticket) return { valid: false as const, reason: 'UNKNOWN' as const };
+
+    // Scoping : un contrôleur rattaché à un organisateur ne valide QUE les
+    // événements de cet organisateur. Un contrôleur global (managedByOrganizerId
+    // null, ex. compte de démonstration) valide tout.
+    if (controllerId) {
+      const controller = await prisma.user.findUnique({
+        where: { id: controllerId },
+        select: { managedByOrganizerId: true },
+      });
+      if (
+        controller?.managedByOrganizerId &&
+        ticket.event.organizerId !== controller.managedByOrganizerId
+      ) {
+        return { valid: false as const, reason: 'WRONG_ORGANIZER' as const };
+      }
+    }
 
     let verdict:
       | { valid: true; ticketId: string; event: { id: string; name: string } }

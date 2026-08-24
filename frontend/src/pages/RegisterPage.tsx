@@ -11,10 +11,11 @@ export function RegisterPage() {
   const register = useRegister();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'buyer' | 'organizer'>('buyer');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await register.mutateAsync({ email, password });
+    await register.mutateAsync({ email, password, role });
     navigate('/');
   }
 
@@ -32,6 +33,33 @@ export function RegisterPage() {
           <h1 className="text-2xl font-extrabold">Créer un compte</h1>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <fieldset>
+            <legend className="mb-2 text-sm text-slate-600">Je veux…</legend>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Type de compte">
+              {(
+                [
+                  { value: 'buyer', title: 'Acheter & Vendre', desc: 'Marketplace + revente' },
+                  { value: 'organizer', title: 'Organiser', desc: 'Événements & règles' },
+                ] as const
+              ).map((opt) => (
+                <button
+                  type="button"
+                  key={opt.value}
+                  role="radio"
+                  aria-checked={role === opt.value}
+                  onClick={() => setRole(opt.value)}
+                  className={`rounded-2xl border p-3 text-left transition ${
+                    role === opt.value
+                      ? 'border-accent bg-accent/10 shadow-glow'
+                      : 'border-slate-300/40 hover:border-accent/60'
+                  }`}
+                >
+                  <span className="block text-sm font-bold">{opt.title}</span>
+                  <span className="block text-xs text-slate-500">{opt.desc}</span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
           <label className="block text-sm text-slate-600">
             Email
             <input

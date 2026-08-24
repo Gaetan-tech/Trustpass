@@ -10,6 +10,9 @@ import {
   useDeleteEvent,
   useEventTickets,
   useTicketHistory,
+  useControllers,
+  useCreateController,
+  useRevokeController,
 } from '../features/organizer/useOrganizer';
 import { useAuth } from '../store/auth';
 import { formatPrice } from '../lib/format';
@@ -103,7 +106,91 @@ export function OrganizerDashboardPage() {
           <EventTicketsCard eventId={selected} />
         </div>
       )}
+
+      <div className="mt-6">
+        <ControllersCard />
+      </div>
     </section>
+  );
+}
+
+// Comptes contrôleur gérés par l'organisateur : création (email + mot de passe),
+// liste et révocation. Chaque contrôleur ne peut valider que les événements de
+// cet organisateur.
+function ControllersCard() {
+  const list = useControllers(true);
+  const create = useCreateController();
+  const revoke = useRevokeController();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || password.length < 8) return;
+    await create.mutateAsync({ email: email.trim(), password });
+    setEmail('');
+    setPassword('');
+  }
+
+  const taken = create.error instanceof ApiRequestError && create.error.code === 'EMAIL_TAKEN';
+
+  return (
+    <div className="rounded-3xl glass p-6">
+      <h2 className="mb-1 font-semibold">Mes contrôleurs</h2>
+      <p className="mb-4 text-xs text-slate-500">
+        Crée des comptes contrôleur pour valider les billets à l'entrée. Ils ne peuvent scanner que
+        tes événements.
+      </p>
+
+      <form onSubmit={submit} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+        <input
+          type="email"
+          aria-label="Email du contrôleur"
+          placeholder="controleur@exemple.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="input-dark"
+        />
+        <input
+          type="password"
+          aria-label="Mot de passe du contrôleur"
+          placeholder="Mot de passe (8 car. min.)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={8}
+          className="input-dark"
+        />
+        <button type="submit" disabled={create.isPending} className="btn-neon whitespace-nowrap">
+          {create.isPending ? 'Création…' : 'Créer'}
+        </button>
+      </form>
+      {create.isError && (
+        <p className="mt-2 text-sm text-red-600" role="alert">
+          {taken ? 'Cet email est déjà utilisé.' : 'Création impossible.'}
+        </p>
+      )}
+
+      <ul className="mt-4 divide-y divide-slate-200/40">
+        {list.data?.data.length === 0 && (
+          <li className="py-3 text-sm text-slate-500">Aucun contrôleur pour l'instant.</li>
+        )}
+        {list.data?.data.map((c) => (
+          <li key={c.id} className="flex items-center justify-between py-3">
+            <span className="text-sm">{c.email}</span>
+            <button
+              type="button"
+              onClick={() => revoke.mutate(c.id)}
+              disabled={revoke.isPending}
+              className="text-xs text-red-600 hover:underline"
+            >
+              Révoquer
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
