@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { Listing } from '../../types/api';
@@ -25,6 +26,20 @@ export function CheckoutModal({ listing, onClose }: Props) {
   const user = useAuth((s) => s.user);
   const navigate = useNavigate();
   const location = useLocation();
+  const qc = useQueryClient();
+
+  // Rafraîchit la marketplace dès que la commande est réglée : une annonce
+  // vendue (transferred) disparaît de la liste des annonces actives ; en cas
+  // d'échec (failed) elle y réapparaît (annonce relibérée). Corrige AN-2026-023.
+  useEffect(() => {
+    if (order?.status === 'transferred' || order?.status === 'failed') {
+      qc.invalidateQueries({ queryKey: ['listings'] });
+      qc.invalidateQueries({ queryKey: ['events'] });
+      if (order.status === 'transferred') {
+        qc.invalidateQueries({ queryKey: ['tickets', 'me'] });
+      }
+    }
+  }, [order?.status, qc]);
 
   useEffect(() => {
     setOrderId(null);
@@ -55,6 +70,8 @@ export function CheckoutModal({ listing, onClose }: Props) {
     setOrderId(res.orderId);
     // clientSecret factice « pi_fake… » => Stripe simulé : on propose la validation manuelle.
     setSimulated(Boolean(res.clientSecret?.startsWith('pi_fake')));
+    // L'annonce vient de passer "reserved" : elle sort de la liste des annonces actives.
+    qc.invalidateQueries({ queryKey: ['listings'] });
   }
 
   // Mode démo uniquement : appelle l'endpoint de simulation dédié, qui marque la
