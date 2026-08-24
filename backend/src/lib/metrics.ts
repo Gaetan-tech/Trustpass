@@ -3,10 +3,15 @@
 // (latence, trafic, erreurs, saturation) et des compteurs métier propres au
 // produit, seuls capables de révéler certaines pannes silencieuses.
 import client from 'prom-client';
+import { metrics as otelApi } from '@opentelemetry/api';
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from './prisma.js';
 import { getNotificationsQueue } from './queue.js';
 import { env } from '../config/env.js';
+
+// Meter OpenTelemetry (export vers Application Insights si le distro Azure Monitor
+// est actif — cf. lib/otel.ts). Sinon, meter no-op : les enregistrements sont ignorés.
+const meter = otelApi.getMeter('trustpass');
 
 export const registry = new client.Registry();
 client.collectDefaultMetrics({ register: registry, prefix: 'trustpass_' });
@@ -26,31 +31,55 @@ const httpTotal = new client.Counter({
   registers: [registry],
 });
 
-// --- Compteurs métier (incrémentés aux points d'usage) -----------------------
-export const checkoutTotal = new client.Counter({
+// --- Compteurs métier : double émission Prometheus (/metrics) + OTel (App Insights)
+// Les points d'usage appellent les helpers record* ci-dessous, qui alimentent
+// les deux backends d'un seul geste.
+const promCheckout = new client.Counter({
   name: 'trustpass_checkout_total',
   help: 'Résultat du tunnel d’achat',
   labelNames: ['result'] as const, // success | failed
   registers: [registry],
 });
-export const webhookEventsTotal = new client.Counter({
+const promWebhook = new client.Counter({
   name: 'trustpass_webhook_events_total',
   help: 'Traitement des webhooks Stripe',
   labelNames: ['result'] as const, // ok | error | replayed
   registers: [registry],
 });
-export const emailSendTotal = new client.Counter({
+const promEmail = new client.Counter({
   name: 'trustpass_email_send_total',
   help: 'Résultat des envois de courriels',
   labelNames: ['result'] as const, // ok | error
   registers: [registry],
 });
-export const transferDelay = new client.Histogram({
+const promTransferDelay = new client.Histogram({
   name: 'trustpass_transfer_delay_seconds',
   help: 'Délai entre paiement confirmé et billet transféré',
   buckets: [0.2, 0.5, 1, 2, 3, 5, 10, 30],
   registers: [registry],
 });
+
+const otelCheckout = meter.createCounter('trustpass_checkout_total', { description: 'Résultat du tunnel d’achat' });
+const otelWebhook = meter.createCounter('trustpass_webhook_events_total', { description: 'Traitement des webhooks Stripe' });
+const otelEmail = meter.createCounter('trustpass_email_send_total', { description: 'Résultat des envois de courriels' });
+const otelTransferDelay = meter.createHistogram('trustpass_transfer_delay_seconds', { description: 'Délai paiement → billet', unit: 's' });
+
+export function recordCheckout(result: 'success' | 'failed'): void {
+  promCheckout.inc({ result });
+  otelCheckout.add(1, { result });
+}
+export function recordWebhook(result: 'ok' | 'error' | 'replayed'): void {
+  promWebhook.inc({ result });
+  otelWebhook.add(1, { result });
+}
+export function recordEmail(result: 'ok' | 'error'): void {
+  promEmail.inc({ result });
+  otelEmail.add(1, { result });
+}
+export function recordTransferDelay(seconds: number): void {
+  promTransferDelay.observe(seconds);
+  otelTransferDelay.record(seconds);
+}
 
 // --- Jauges métier (calculées à la lecture, résilientes) ---------------------
 function safeGauge(name: string, help: string, compute: () => Promise<number>) {
@@ -69,16 +98,28 @@ function safeGauge(name: string, help: string, compute: () => Promise<number>) {
   });
 }
 
-safeGauge(
-  'trustpass_orders_paid_not_transferred',
-  'Commandes payées sans transfert de billet',
-  () => prisma.order.count({ where: { status: 'paid', transfer: { is: null } } }),
-);
-safeGauge(
-  'trustpass_stale_reservations',
-  'Réservations expirées non libérées',
-  () => prisma.listing.count({ where: { status: 'reserved', reservedUntil: { lt: new Date() } } }),
-);
+const computeOrphanOrders = () =>
+  prisma.order.count({ where: { status: 'paid', transfer: { is: null } } });
+const computeStaleReservations = () =>
+  prisma.listing.count({ where: { status: 'reserved', reservedUntil: { lt: new Date() } } });
+
+// Prometheus (/metrics)
+safeGauge('trustpass_orders_paid_not_transferred', 'Commandes payées sans transfert de billet', computeOrphanOrders);
+safeGauge('trustpass_stale_reservations', 'Réservations expirées non libérées', computeStaleReservations);
+
+// OpenTelemetry → App Insights (observable gauges, mêmes fonctions de calcul)
+function observe(name: string, description: string, compute: () => Promise<number>) {
+  meter.createObservableGauge(name, { description }).addCallback(async (r) => {
+    if (env.NODE_ENV === 'test') return;
+    try {
+      r.observe(await compute());
+    } catch {
+      /* résilient */
+    }
+  });
+}
+observe('trustpass_orders_paid_not_transferred', 'Commandes payées sans transfert de billet', computeOrphanOrders);
+observe('trustpass_stale_reservations', 'Réservations expirées non libérées', computeStaleReservations);
 
 const queueDepth = new client.Gauge({
   name: 'trustpass_queue_depth',
