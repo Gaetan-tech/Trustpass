@@ -1,11 +1,24 @@
 name: CD
 
-# Déploiement continu TrustPass (C2.2.4).
-#   push develop -> staging
-#   push main    -> preprod (auto) -> prod (avec approbation)
+# Déploiement continu TrustPass vers l'infra LIVE : Azure Static Web Apps (frontend)
+# + Azure Container Apps (backend), l'équivalent CI de infra/azure/deploy.sh.
+#
+# INACTIF par défaut : ne s'exécute que si la variable de dépôt
+# AZURE_DEPLOY_ENABLED == 'true'. Sans elle, le job est sauté (pas d'échec).
+#
+# Prérequis une fois l'infra provisionnée (bash infra/azure/deploy.sh) :
+#   Variables (Settings > Secrets and variables > Actions > Variables) :
+#     AZURE_DEPLOY_ENABLED = true
+#     AZURE_RESOURCE_GROUP = trustpass-rg
+#     ACR_NAME             = <sortie ACR, ex. trustpassacr1d390e>
+#     ACA_API_APP          = trustpass-api
+#     SWA_NAME             = <nom du Static Web App, ex. trustpass-web-1d390e>
+#   Secrets :
+#     AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID  (OIDC — cf. infra/README §5.1)
+#     DATABASE_URL  (facultatif : chaîne Postgres prod pour appliquer le schéma ; sinon étape sautée)
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -13,59 +26,81 @@ permissions:
   contents: read
 
 jobs:
-  # --- Construction et publication des images sur l'ACR --------------------
-  build-push:
-    name: Build & push images (ACR)
+  deploy:
+    name: Déploiement SWA + Container Apps
+    if: ${{ vars.AZURE_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.meta.outputs.tag }}
+    env:
+      RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+      ACR: ${{ vars.ACR_NAME }}
+      API_APP: ${{ vars.ACA_API_APP }}
+      SWA_NAME: ${{ vars.SWA_NAME }}
+      TAG: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v7
-      - id: meta
-        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+
       - name: Connexion Azure (OIDC)
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Connexion ACR
-        run: az acr login -n ${{ vars.ACR_NAME }}
-      - name: Build & push backend
+
+      # --- Backend : build + push image, puis mise à jour du Container App ----
+      - name: Build & push image backend (ACR)
         run: |
-          IMG=${{ vars.ACR_LOGIN_SERVER }}/trustpass-backend:${{ steps.meta.outputs.tag }}
-          docker build -t "$IMG" backend
+          set -euo pipefail
+          ACR_SERVER=$(az acr show -n "$ACR" -g "$RG" --query loginServer -o tsv)
+          echo "ACR_SERVER=$ACR_SERVER" >> "$GITHUB_ENV"
+          az acr login -n "$ACR"
+          IMG="$ACR_SERVER/trustpass-backend:${TAG:0:7}"
+          echo "IMG=$IMG" >> "$GITHUB_ENV"
+          docker build -t "$IMG" -f backend/Dockerfile backend
           docker push "$IMG"
-      - name: Build & push frontend
+
+      - name: Migration du schéma (prisma db push)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          IMG=${{ vars.ACR_LOGIN_SERVER }}/trustpass-frontend:${{ steps.meta.outputs.tag }}
-          docker build -t "$IMG" frontend
-          docker push "$IMG"
+          set -euo pipefail
+          # secrets interdits dans if: -> on saute ici si DATABASE_URL n'est pas fourni.
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_URL absent — migration du schéma sautée."; exit 0
+          fi
+          # Autorise temporairement l'IP publique du runner sur Postgres.
+          PG=$(az postgres flexible-server list -g "$RG" --query "[0].name" -o tsv)
+          RUNNER_IP=$(curl -s https://api.ipify.org)
+          az postgres flexible-server firewall-rule create -g "$RG" -s "$PG" \
+            -n gha-runner --start-ip-address "$RUNNER_IP" --end-ip-address "$RUNNER_IP" -o none
+          trap 'az postgres flexible-server firewall-rule delete -g "$RG" -s "$PG" -n gha-runner --yes -o none || true' EXIT
+          cd backend
+          npm ci
+          npx prisma db push --skip-generate
 
-  # --- Déploiements par environnement --------------------------------------
-  staging:
-    needs: build-push
-    if: github.ref == 'refs/heads/develop'
-    uses: ./.github/workflows/deploy.yml
-    with:
-      environment: staging
-      image_tag: ${{ needs.build-push.outputs.tag }}
-    secrets: inherit
+      - name: Mise à jour du Container App backend
+        run: az containerapp update -n "$API_APP" -g "$RG" --image "$IMG" -o none
 
-  preprod:
-    needs: build-push
-    if: github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/deploy.yml
-    with:
-      environment: preprod
-      image_tag: ${{ needs.build-push.outputs.tag }}
-    secrets: inherit
+      # --- Frontend : build (avec l'URL du backend) + déploiement SWA ---------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-  prod:
-    needs: [build-push, preprod]
-    if: github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/deploy.yml
-    with:
-      environment: prod
-      image_tag: ${{ needs.build-push.outputs.tag }}
-    secrets: inherit
+      - name: Build frontend
+        run: |
+          set -euo pipefail
+          API_FQDN=$(az containerapp show -n "$API_APP" -g "$RG" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          cd frontend
+          npm ci
+          VITE_API_BASE_URL="https://$API_FQDN/api/v1" npm run build
+
+      - name: Déploiement Static Web Apps
+        run: |
+          set -euo pipefail
+          SWA_TOKEN=$(az staticwebapp secrets list -n "$SWA_NAME" -g "$RG" \
+            --query properties.apiKey -o tsv)
+          npx --yes @azure/static-web-apps-cli deploy ./frontend/dist \
+            --deployment-token "$SWA_TOKEN" --env production
