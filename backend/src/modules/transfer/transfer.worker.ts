@@ -2,7 +2,7 @@ import { Worker } from 'bullmq';
 import { TRANSFER_QUEUE, queueConnection } from '../../lib/queue.js';
 import { logger } from '../../lib/logger.js';
 import { executeTransfer } from './transfer.service.js';
-import { checkoutTotal, transferDelay } from '../../lib/metrics.js';
+import { recordCheckout, recordTransferDelay } from '../../lib/metrics.js';
 
 export interface TransferJob {
   orderId: string;
@@ -17,13 +17,13 @@ export function startTransferWorker(): Worker<TransferJob> {
     TRANSFER_QUEUE,
     async (job) => {
       await executeTransfer(job.data.orderId); // atomique + idempotent
-      if (job.data.paidAt) transferDelay.observe((Date.now() - job.data.paidAt) / 1000);
-      checkoutTotal.inc({ result: 'success' });
+      if (job.data.paidAt) recordTransferDelay((Date.now() - job.data.paidAt) / 1000);
+      recordCheckout('success');
     },
     { connection: queueConnection() },
   );
   worker.on('failed', (job, err) => {
-    checkoutTotal.inc({ result: 'failed' });
+    recordCheckout('failed');
     logger.error({ jobId: job?.id, orderId: job?.data.orderId, err }, 'transfer job failed');
   });
   return worker;

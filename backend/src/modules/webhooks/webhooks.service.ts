@@ -6,14 +6,14 @@ import { executeTransfer } from '../transfer/transfer.service.js';
 import { ordersService } from '../orders/orders.service.js';
 import { enqueueEmail } from '../notifications/notifications.service.js';
 import { getTransferQueue } from '../../lib/queue.js';
-import { webhookEventsTotal, checkoutTotal } from '../../lib/metrics.js';
+import { recordWebhook, recordCheckout } from '../../lib/metrics.js';
 
 // Traite un événement Stripe de façon idempotente (US-4.3).
 // stripe_events garantit qu'un même évènement n'est traité qu'une fois.
 export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
   const seen = await prisma.stripeEvent.findUnique({ where: { id: event.id } });
   if (seen?.processedAt) {
-    webhookEventsTotal.inc({ result: 'replayed' });
+    recordWebhook('replayed');
     return; // déjà traité
   }
 
@@ -41,7 +41,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
           );
         } else {
           await executeTransfer(orderId);
-          checkoutTotal.inc({ result: 'success' });
+          recordCheckout('success');
         }
       }
       break;
@@ -58,7 +58,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
         if (order) {
           await enqueueEmail({ type: 'payment_failed', to: order.buyer.email, eventName: order.listing.ticket.event.name });
         }
-        checkoutTotal.inc({ result: 'failed' });
+        recordCheckout('failed');
       }
       break;
     }
@@ -67,7 +67,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
   }
 
   await prisma.stripeEvent.update({ where: { id: event.id }, data: { processedAt: new Date() } });
-  webhookEventsTotal.inc({ result: 'ok' });
+  recordWebhook('ok');
 }
 
 function orderIdFrom(event: Stripe.Event): string | undefined {

@@ -1,3 +1,4 @@
+import './lib/otel.js'; // DOIT rester en premier (auto-instrumentation OpenTelemetry)
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
