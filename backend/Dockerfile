@@ -1,5 +1,5 @@
 # --- Build : compile TypeScript + génère le client Prisma -----------------
-FROM node:20-slim AS build
+FROM node:26-slim AS build
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
@@ -11,7 +11,7 @@ COPY src ./src
 RUN npm run build
 
 # --- Runtime : Node + client Prisma + CLI (pour les migrations) -----------
-FROM node:20-slim AS runtime
+FROM node:26-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
