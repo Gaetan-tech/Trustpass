@@ -29,7 +29,6 @@ ACR="${ACR:-trustpassacr${SUFFIX}}"
 PG_SERVER="${PG_SERVER:-trustpass-pg-${SUFFIX}}"
 PG_DB="trustpass"
 PG_ADMIN="${PG_ADMIN:-tpadmin}"
-REDIS_NAME="${REDIS_NAME:-trustpass-redis-${SUFFIX}}"
 ACA_ENV="${ACA_ENV:-trustpass-env}"
 API_APP="${API_APP:-trustpass-api}"
 SWA_NAME="${SWA_NAME:-trustpass-web-${SUFFIX}}"
@@ -118,27 +117,19 @@ fi
 PG_HOST="$(az postgres flexible-server show -n "$PG_SERVER" -g "$RG" --query fullyQualifiedDomainName -o tsv)"
 DATABASE_URL="postgresql://${PG_ADMIN}:$(urlenc "$PG_PASSWORD")@${PG_HOST}:5432/${PG_DB}?sslmode=require"
 
-# ---- 4. Container Apps Environment + Redis interne --------------------------
-# Azure Cache for Redis est en retrait pour les nouveaux comptes, et Azure Managed
-# Redis est disproportionné (coût) pour une démo. On fait tourner Redis comme
-# Container App INTERNE (TCP) dans le même environnement : locks + file BullMQ
-# n'exigent pas de persistance ici. Pas de TLS ni d'auth sur le réseau privé de l'env.
-step "4/9 Container Apps Environment + Redis interne"
+# ---- 4. Container Apps Environment -----------------------------------------
+# Redis tourne en SIDECAR du backend (voir étape 5) : le backend le joint via
+# localhost:6379. On évite ainsi le TCP inter-app (l'ingress interne ACA s'est
+# révélé injoignable — ETIMEDOUT). Sans persistance : adapté aux locks + file
+# BullMQ d'une démo. Azure Cache for Redis est par ailleurs en retrait pour les
+# nouveaux comptes, et Azure Managed Redis est disproportionné (coût).
+step "4/9 Container Apps Environment"
 az containerapp env show -n "$ACA_ENV" -g "$RG" -o none 2>/dev/null || \
   az containerapp env create -n "$ACA_ENV" -g "$RG" -l "$LOCATION" -o none
+REDIS_URL="redis://localhost:6379"
 
-if ! az containerapp show -n "$REDIS_NAME" -g "$RG" -o none 2>/dev/null; then
-  az containerapp create \
-    -n "$REDIS_NAME" -g "$RG" --environment "$ACA_ENV" \
-    --image redis:7-alpine \
-    --ingress internal --transport tcp --target-port 6379 --exposed-port 6379 \
-    --min-replicas 1 --max-replicas 1 --cpu 0.25 --memory 0.5Gi -o none
-fi
-REDIS_FQDN="$(az containerapp show -n "$REDIS_NAME" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
-REDIS_URL="redis://${REDIS_FQDN}:6379"
-
-# ---- 5. Backend (Container App) --------------------------------------------
-step "5/9 Backend (Container App)"
+# ---- 5. Backend (Container App) + sidecar Redis ----------------------------
+step "5/9 Backend (Container App) + sidecar Redis"
 # CORS_ORIGIN provisoire (mis à jour à l'étape 8 avec l'URL réelle du SWA)
 if ! az containerapp show -n "$API_APP" -g "$RG" -o none 2>/dev/null; then
   az containerapp create \
@@ -162,6 +153,30 @@ else
   az containerapp update -n "$API_APP" -g "$RG" \
     --image "${ACR_SERVER}/trustpass-backend:${IMAGE_TAG}" -o none
 fi
+
+# Ajoute le conteneur sidecar redis:7-alpine (idempotent). `az containerapp create`
+# ne gère qu'un conteneur : on ajoute le 2e via une mise à jour YAML, en
+# réinjectant les valeurs de secrets pour ne pas les effacer.
+add_redis_sidecar() {
+  local tmp; tmp="$(mktemp -d)"
+  az containerapp show -n "$API_APP" -g "$RG" -o json > "$tmp/app.json"
+  az containerapp secret list -n "$API_APP" -g "$RG" --show-values -o json > "$tmp/secrets.json"
+  node -e '
+    const dir=process.argv[1];
+    const a=require(dir+"/app.json"), secrets=require(dir+"/secrets.json");
+    const p=a.properties, cfg=p.configuration;
+    cfg.secrets=secrets.map(s=>({name:s.name,value:s.value}));
+    if(!p.template.containers.some(c=>c.name==="redis")){
+      p.template.containers.push({name:"redis",image:"redis:7-alpine",resources:{cpu:0.25,memory:"0.5Gi"}});
+    }
+    const out={location:a.location,properties:{environmentId:p.environmentId,configuration:cfg,template:p.template}};
+    if(a.identity) out.identity=a.identity;
+    require("fs").writeFileSync(dir+"/update.json",JSON.stringify(out,null,2));
+  ' "$tmp"
+  az containerapp update -n "$API_APP" -g "$RG" --yaml "$tmp/update.json" -o none
+  rm -rf "$tmp"
+}
+add_redis_sidecar
 API_FQDN="$(az containerapp show -n "$API_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
 API_URL="https://${API_FQDN}"
 
@@ -200,7 +215,7 @@ cat <<EOF
   Frontend (SPA)  : ${SWA_URL}
   Backend  (API)  : ${API_URL}/health
   Postgres        : ${PG_HOST}
-  Redis           : ${REDIS_FQDN}:6379 (interne à l'env Container Apps)
+  Redis           : sidecar localhost:6379 (dans le Container App ${API_APP})
 
   Comptes démo    : buyer@trustpass.dev / password123 (+ seller / organizer / controller)
   Secrets locaux  : ${STATE_FILE}  (ne pas committer)
