@@ -60,12 +60,19 @@ export const listingsService = {
 
   // US-3.2 — liste publique des annonces actives.
   async list(q: z.infer<typeof listListingsQuery>) {
+    // On n'affiche que les annonces dont la revente est encore ouverte : la
+    // clôture par défaut = début de l'événement − 1 h. Ainsi une annonce
+    // invendable (événement passé/imminent) ne s'affiche pas dans la marketplace.
+    // La règle exacte (fenêtres personnalisées) reste garantie à l'achat.
+    const resaleOpenThreshold = new Date(Date.now() + 60 * 60 * 1000);
     const where: Prisma.ListingWhereInput = {
       status: 'active',
       ...(q.maxPrice ? { price: { lte: q.maxPrice } } : {}),
-      ...(q.eventId || q.ticketTypeId
-        ? { ticket: { eventId: q.eventId, ticketTypeId: q.ticketTypeId } }
-        : {}),
+      ticket: {
+        ...(q.eventId ? { eventId: q.eventId } : {}),
+        ...(q.ticketTypeId ? { ticketTypeId: q.ticketTypeId } : {}),
+        event: { startsAt: { gt: resaleOpenThreshold } },
+      },
     };
     const [rows, total] = await Promise.all([
       prisma.listing.findMany({
