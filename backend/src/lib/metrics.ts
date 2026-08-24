@@ -82,6 +82,15 @@ export function recordTransferDelay(seconds: number): void {
 }
 
 // --- Jauges métier (calculées à la lecture, résilientes) ---------------------
+// Un collecteur ne doit JAMAIS faire pendre /metrics : toute I/O est bornée par
+// un timeout (ex. Redis injoignable → on saute la jauge au lieu de bloquer).
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('metrics collect timeout')), ms)),
+  ]);
+}
+
 function safeGauge(name: string, help: string, compute: () => Promise<number>) {
   return new client.Gauge({
     name,
@@ -90,7 +99,7 @@ function safeGauge(name: string, help: string, compute: () => Promise<number>) {
     async collect() {
       if (env.NODE_ENV === 'test') return; // pas d'accès DB/Redis en tests unitaires
       try {
-        this.set(await compute());
+        this.set(await withTimeout(compute(), 800));
       } catch {
         /* la sonde ne doit jamais faire échouer /metrics */
       }
@@ -112,7 +121,7 @@ function observe(name: string, description: string, compute: () => Promise<numbe
   meter.createObservableGauge(name, { description }).addCallback(async (r) => {
     if (env.NODE_ENV === 'test') return;
     try {
-      r.observe(await compute());
+      r.observe(await withTimeout(compute(), 800));
     } catch {
       /* résilient */
     }
@@ -138,13 +147,13 @@ const _queueOldest = new client.Gauge({
     try {
       const q = getNotificationsQueue();
       if (!q) return;
-      const counts = await q.getJobCounts('wait', 'delayed');
+      const counts = await withTimeout(q.getJobCounts('wait', 'delayed'), 500);
       queueDepth.set({ queue: 'emails' }, (counts.wait ?? 0) + (counts.delayed ?? 0));
-      const [oldest] = await q.getJobs(['wait', 'delayed'], 0, 0, true);
+      const [oldest] = await withTimeout(q.getJobs(['wait', 'delayed'], 0, 0, true), 500);
       const ageSec = oldest ? (Date.now() - oldest.timestamp) / 1000 : 0;
       this.set({ queue: 'emails' }, ageSec);
     } catch {
-      /* résilient */
+      /* résilient (ex. Redis injoignable) */
     }
   },
 });
