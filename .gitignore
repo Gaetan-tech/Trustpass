@@ -10,6 +10,7 @@ build/
 .env
 .env.*
 !.env.example
+infra/azure/.deploy-state.env
 
 # Prisma
 backend/prisma/*.db
