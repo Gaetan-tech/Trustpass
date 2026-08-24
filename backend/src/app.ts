@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -6,13 +7,26 @@ import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { apiRouter } from './routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { metricsMiddleware } from './lib/metrics.js';
 
 export function createApp() {
   const app = express();
 
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
-  app.use(pinoHttp({ logger }));
+  // Journalisation structurée avec propagation d'un requestId de bout en bout
+  // (repris de l'en-tête entrant ou généré), renvoyé aussi au client (BLOC 4, §3.2.3).
+  app.use(
+    pinoHttp({
+      logger,
+      genReqId: (req, res) => {
+        const existing = (req.headers['x-request-id'] as string) || randomUUID();
+        res.setHeader('X-Request-Id', existing);
+        return existing;
+      },
+    }),
+  );
+  app.use(metricsMiddleware);
 
   // Le webhook Stripe a besoin du corps brut pour vérifier la signature :
   // on monte le raw body AVANT le parser JSON global.

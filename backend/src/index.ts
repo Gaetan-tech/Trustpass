@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { startReservationReaper } from './workers/reservationReaper.js';
 import { startNotificationsWorker } from './modules/notifications/notifications.worker.js';
+import { startTransferWorker } from './modules/transfer/transfer.worker.js';
 
 const app = createApp();
 
@@ -15,3 +16,7 @@ startReservationReaper();
 
 // Worker d'emails transactionnels (Resend). Consomme la queue BullMQ.
 startNotificationsWorker();
+
+// Worker de transfert : exécute le transfert atomique délégué par le webhook Stripe
+// (découplé de la réponse HTTP — correctif AN-2026-017).
+startTransferWorker();

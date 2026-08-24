@@ -6,6 +6,8 @@ const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(3000),
   DATABASE_URL: z.string().url(),
+  // Taille du pool de connexions Prisma (dimensionnée pour le pic — cf. AN-2026-017).
+  DATABASE_CONNECTION_LIMIT: z.coerce.number().int().positive().default(20),
   REDIS_URL: z.string().url(),
   JWT_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),
