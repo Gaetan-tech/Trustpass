@@ -1,5 +1,5 @@
 # --- Build : bundle Vite -------------------------------------------------
-FROM node:20-slim AS build
+FROM node:26-slim AS build
 WORKDIR /app
 # API servie par nginx sous /api (proxifié vers le service backend).
 ARG VITE_API_BASE_URL=/api/v1
