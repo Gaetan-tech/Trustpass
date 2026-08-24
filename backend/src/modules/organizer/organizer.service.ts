@@ -1,6 +1,8 @@
+import argon2 from 'argon2';
 import { prisma } from '../../lib/prisma.js';
 import { Errors } from '../../lib/errors.js';
 import { getTicketHistory } from '../tickets/ticketHistory.js';
+import type { CreateControllerInput } from './organizer.schema.js';
 
 export const organizerService = {
   // Événements appartenant à l'organisateur (pour alimenter le dashboard).
@@ -87,5 +89,49 @@ export const organizerService = {
     if (ticket.event.organizerId !== organizerId) throw Errors.forbidden();
 
     return getTicketHistory(ticketId);
+  },
+
+  // --- Comptes contrôleur gérés par l'organisateur -------------------------
+  // Un organisateur crée ses propres contrôleurs (email + mot de passe). Chaque
+  // contrôleur est rattaché à l'organisateur via managedByOrganizerId, ce qui
+  // restreint ses scans aux événements de cet organisateur (voir tickets.service).
+  async createController(organizerId: string, input: CreateControllerInput) {
+    const existing = await prisma.user.findUnique({ where: { email: input.email } });
+    if (existing) throw Errors.conflict('EMAIL_TAKEN', 'Email déjà utilisé');
+    const passwordHash = await argon2.hash(input.password);
+    const controller = await prisma.user.create({
+      data: {
+        email: input.email,
+        passwordHash,
+        role: 'controller',
+        managedByOrganizerId: organizerId,
+        emailVerifiedAt: new Date(), // compte de service : pas de vérification email
+      },
+      select: { id: true, email: true, role: true, createdAt: true },
+    });
+    return controller;
+  },
+
+  async listControllers(organizerId: string) {
+    const data = await prisma.user.findMany({
+      where: { role: 'controller', managedByOrganizerId: organizerId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, email: true, createdAt: true },
+    });
+    return { data };
+  },
+
+  async revokeController(organizerId: string, controllerId: string) {
+    const c = await prisma.user.findUnique({
+      where: { id: controllerId },
+      select: { id: true, role: true, managedByOrganizerId: true },
+    });
+    if (!c || c.role !== 'controller' || c.managedByOrganizerId !== organizerId) {
+      throw Errors.notFound('Contrôleur introuvable');
+    }
+    // Les refresh tokens partent en cascade ; les logs d'audit sont conservés
+    // (actorId passe à null via onDelete: SetNull).
+    await prisma.user.delete({ where: { id: controllerId } });
+    return { revoked: true };
   },
 };

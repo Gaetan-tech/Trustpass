@@ -14,12 +14,18 @@ export function useLogin() {
 }
 
 // POST /auth/register (US-1.1) puis login automatique pour enchaîner.
+// `role` : le client choisit son profil à l'inscription (« buyer » = Acheteur &
+// Vendeur, ou « organizer »). Défaut buyer.
 export function useRegister() {
   const setSession = useAuth((s) => s.setSession);
   return useMutation({
-    mutationFn: async (input: { email: string; password: string }) => {
+    mutationFn: async (input: { email: string; password: string; role?: 'buyer' | 'organizer' }) => {
       await api<User>('/auth/register', { method: 'POST', body: JSON.stringify(input) });
-      return api<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(input) });
+      const { email, password } = input;
+      return api<AuthResponse>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
     },
     onSuccess: (data) => setSession(data),
   });

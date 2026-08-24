@@ -109,3 +109,42 @@ export function useTicketHistory(ticketId: string | null) {
     queryFn: () => api<TicketHistory>(`/organizer/tickets/${ticketId}/history`),
   });
 }
+
+// --- Comptes contrôleur gérés par l'organisateur --------------------------
+export interface ControllerAccount {
+  id: string;
+  email: string;
+  createdAt: string;
+}
+
+// GET /organizer/controllers — contrôleurs créés par l'organisateur.
+export function useControllers(enabled: boolean) {
+  return useQuery({
+    queryKey: ['organizer', 'controllers'],
+    enabled,
+    queryFn: () => api<{ data: ControllerAccount[] }>('/organizer/controllers'),
+  });
+}
+
+// POST /organizer/controllers — crée un compte contrôleur (email + mot de passe).
+export function useCreateController() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { email: string; password: string }) =>
+      api<ControllerAccount>('/organizer/controllers', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['organizer', 'controllers'] }),
+  });
+}
+
+// DELETE /organizer/controllers/:id — révoque un contrôleur.
+export function useRevokeController() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api<{ revoked: boolean }>(`/organizer/controllers/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['organizer', 'controllers'] }),
+  });
+}

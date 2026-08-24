@@ -26,7 +26,7 @@ export const authService = {
     if (existing) throw Errors.conflict('EMAIL_TAKEN', 'Email already registered');
     const passwordHash = await argon2.hash(input.password);
     const user = await prisma.user.create({
-      data: { email: input.email, passwordHash },
+      data: { email: input.email, passwordHash, role: input.role },
       select: { id: true, email: true, role: true },
     });
     await enqueueEmail({ type: 'email_verification', to: user.email });
