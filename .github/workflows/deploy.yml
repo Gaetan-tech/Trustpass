@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }} # gates d'approbation configurables (prod)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Connexion Azure (OIDC)
         uses: azure/login@v2
