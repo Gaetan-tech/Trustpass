@@ -85,7 +85,7 @@ export function EventDetailPage() {
       {/* Annonces pour cet événement */}
       <h2 className="mb-4 text-xl font-bold">Billets en revente</h2>
       {listings.isLoading && <p className="text-slate-500">Chargement…</p>}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {listings.data?.data.map((l) => (
           <ListingCard key={l.id} listing={l} onBuy={setSelected} />
         ))}

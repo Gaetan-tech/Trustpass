@@ -9,6 +9,10 @@ export function useFinalizeOrder() {
   return useMutation({
     mutationFn: (orderId: string) =>
       api<OrderStatusResponse>(`/orders/${orderId}/finalize`, { method: 'POST' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tickets', 'me'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tickets', 'me'] });
+      qc.invalidateQueries({ queryKey: ['listings'] }); // l'annonce vendue quitte la marketplace
+      qc.invalidateQueries({ queryKey: ['events'] });
+    },
   });
 }

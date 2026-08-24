@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useAuth } from '../store/auth';
 import { useEvents, useEvent } from '../features/events/useEvents';
 import { eventPhotoDataUrl } from '../lib/concertPhoto';
 import {
@@ -11,6 +12,7 @@ import {
 
 // Générateur de maquette de billet : aperçu en direct + téléchargement PNG.
 export function MockupPage() {
+  const user = useAuth((s) => s.user);
   const events = useEvents();
   const [eventId, setEventId] = useState('');
   const [holderName, setHolderName] = useState('');
@@ -64,6 +66,16 @@ export function MockupPage() {
     } finally {
       setDownloading(false);
     }
+  }
+
+  // Réservé aux organisateurs (garde placée après tous les hooks).
+  if (user?.role !== 'organizer') {
+    return (
+      <section className="mx-auto max-w-5xl px-5 py-16 text-center text-slate-500">
+        <h1 className="poster-title mb-2 text-3xl">Maquette de billet</h1>
+        <p>Cette fonctionnalité est réservée aux comptes organisateur.</p>
+      </section>
+    );
   }
 
   return (

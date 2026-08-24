@@ -59,7 +59,7 @@ export function OrganizerDashboardPage() {
   const selectedEvent = events.data?.data.find((e) => e.id === selected) ?? null;
 
   return (
-    <section className="mx-auto max-w-4xl px-5 py-10">
+    <section className="mx-auto max-w-6xl px-5 py-10">
       <h1 className="mb-6 text-2xl font-bold">Dashboard organisateur</h1>
 
       <CreateEventCard onCreated={(id) => setSelected(id)} />
