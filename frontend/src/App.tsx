@@ -44,7 +44,7 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <AnimatedBackground />
 
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-ink/70 backdrop-blur-xl">
@@ -84,7 +84,7 @@ export function App() {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-6xl">
+      <main className="mx-auto w-full max-w-[1800px] flex-1">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
