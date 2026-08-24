@@ -78,7 +78,8 @@ jobs:
           npx prisma db push --skip-generate
 
       - name: Mise à jour du Container App backend
-        run: az containerapp update -n "$API_APP" -g "$RG" --image "$IMG" -o none
+        # --container-name requis : le Container App a 2 conteneurs (backend + sidecar redis).
+        run: az containerapp update -n "$API_APP" -g "$RG" --container-name "$API_APP" --image "$IMG" -o none
 
       # --- Frontend : build (avec l'URL du backend) + déploiement SWA ---------
       - name: Setup Node
