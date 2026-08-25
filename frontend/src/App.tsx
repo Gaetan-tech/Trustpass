@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MarketplacePage } from './pages/MarketplacePage';
@@ -32,11 +33,30 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   );
 }
 
+// Lien du menu mobile (le menu se ferme via l'effet sur location.pathname).
+function MobileLink({ to, children }: { to: string; children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  const active = pathname === to;
+  return (
+    <Link
+      to={to}
+      className={`rounded-lg px-3 py-2 text-sm transition ${
+        active ? 'bg-accent/10 font-semibold text-accent' : 'text-slate-700 hover:bg-slate-100'
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
+
 export function App() {
   const user = useAuth((s) => s.user);
   const logout = useLogout();
   const navigate = useNavigate();
   const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Ferme le menu mobile à chaque changement de page.
+  useEffect(() => setMenuOpen(false), [location.pathname]);
 
   async function handleLogout() {
     await logout.mutateAsync();
@@ -80,8 +100,49 @@ export function App() {
                 Connexion
               </Link>
             )}
+
+            {/* Bouton menu (mobile uniquement) */}
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label={menuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+              aria-expanded={menuOpen}
+              className="rounded-lg border border-slate-300 p-2 text-slate-700 transition hover:border-slate-400 sm:hidden"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                {menuOpen ? (
+                  <path d="M6 6l12 12M6 18L18 6" />
+                ) : (
+                  <path d="M4 7h16M4 12h16M4 17h16" />
+                )}
+              </svg>
+            </button>
           </div>
         </nav>
+
+        {/* Menu déroulant mobile */}
+        <AnimatePresence>
+          {menuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden border-t border-slate-200 bg-ink/95 sm:hidden"
+            >
+              <div className="flex flex-col gap-1 px-5 py-3">
+                <MobileLink to="/">Marketplace</MobileLink>
+                {user && <MobileLink to="/tickets">Mes billets</MobileLink>}
+                {user && <MobileLink to="/sell">Vendre</MobileLink>}
+                {user?.role === 'organizer' && <MobileLink to="/mockup">Maquette</MobileLink>}
+                {user?.role === 'organizer' && <MobileLink to="/organizer">Organisateur</MobileLink>}
+                {user?.role === 'controller' && <MobileLink to="/scan">Contrôle</MobileLink>}
+                {user && (
+                  <span className="mt-2 border-t border-slate-200 pt-2 text-xs text-slate-400">{user.email}</span>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
       <main className="mx-auto w-full max-w-[1800px] flex-1">
