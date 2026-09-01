@@ -15,6 +15,13 @@ const schema = z.object({
   JWT_REFRESH_TTL: z.string().default('30d'),
   STRIPE_SECRET_KEY: z.string().default(''),
   STRIPE_WEBHOOK_SECRET: z.string().default(''),
+  // Feature flag du paiement Stripe réel. OFF par défaut : la fonctionnalité est
+  // livrée en prod mais n'apparaît (tunnel Stripe Checkout) qu'une fois activée
+  // (FEATURE_STRIPE_CHECKOUT=true ET une clé sk_ fournie). Sinon → mode simulé.
+  FEATURE_STRIPE_CHECKOUT: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true' || v === '1'),
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default('TrustPass <noreply@trustpass.dev>'),
   RESERVATION_TTL_SECONDS: z.coerce.number().default(600),
