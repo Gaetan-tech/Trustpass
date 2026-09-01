@@ -37,6 +37,10 @@ export function createApp() {
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
   app.get('/ready', (_req, res) => res.json({ status: 'ready' }));
 
+  // La racine renvoie vers la documentation interactive : ouvrir l'URL Azure
+  // de l'API affiche directement la description de l'API (Swagger UI).
+  app.get('/', (_req, res) => res.redirect('/api/v1/docs'));
+
   app.use('/api/v1', apiRouter);
 
   app.use(errorHandler);

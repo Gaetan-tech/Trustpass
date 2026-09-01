@@ -7,9 +7,13 @@ import { ordersRoutes } from './modules/orders/orders.routes.js';
 import { webhooksRoutes } from './modules/webhooks/webhooks.routes.js';
 import { organizerRoutes } from './modules/organizer/organizer.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import { docsRoutes } from './modules/docs/docs.routes.js';
 
 // Routeur applicatif monté sous /api/v1 (voir API_CONTRACT.md).
 export const apiRouter = Router();
+
+// Documentation interactive : /api/v1/docs (Swagger UI) + /api/v1/openapi.json.
+apiRouter.use('/', docsRoutes);
 
 // Sondes de supervision : /api/v1/live, /ready, /health, /metrics (BLOC 4, §3.2.4).
 apiRouter.use('/', healthRoutes);
