@@ -103,7 +103,8 @@ npm run build         # build de production
 ```
 backend/     API Express + Prisma (modules auth, events, listings, orders, tickets…)
 frontend/    SPA React + Vite
-infra/       Terraform (Azure) + Kubernetes (Kustomize) + runbook de déploiement
+infra/azure/ Déploiement live : Azure Static Web Apps + Container Apps (script + runbook)
+infra/       Alternative AKS : Terraform + Kubernetes (Kustomize) — voir infra/README.md
 docs/        Documentation (dont livrables : ACCESSIBILITE, CAHIER_DE_RECETTES, MANUELS)
 docker-compose.yml   Postgres + Redis pour le dev local
 ```
@@ -125,5 +126,27 @@ Arrêter la stack : `docker compose down` (ajouter `-v` pour effacer les donnée
 
 ## ☁️ Déploiement
 
-Le déploiement continu (Azure AKS + ACR via Terraform, environnements staging/preprod/prod)
-est décrit dans **[`infra/README.md`](infra/README.md)**.
+L'environnement **live** est hébergé sur Azure, en **serverless / cost-minimal** (pas de cluster à gérer) :
+
+```
+Frontend  → Azure Static Web Apps            (SPA statique, CDN mondial, SSL — Free tier)
+Backend   → Azure Container Apps              (image Docker, ingress HTTPS, min 1 réplica*)
+Redis     → sidecar redis:7-alpine           (dans le Container App backend, localhost:6379)
+Postgres  → Azure PostgreSQL Flexible Server (Burstable B1ms, managé + sauvegardes)
+```
+
+> \* `minReplicas=1` : le backend héberge des **workers in-process** (reaper de réservations + file
+> BullMQ) qu'un scale-to-zero arrêterait — on garde 1 réplica chaud.
+
+**Démo en ligne** (peut être en veille pour maîtriser les coûts — cf. `pause.sh`/`resume.sh`) :
+- Frontend : https://wonderful-water-06fe97f0f.7.azurestaticapps.net
+- API : https://trustpass-api.wonderfulsea-3536033b.francecentral.azurecontainerapps.io
+
+**Mise en place & CI/CD** :
+- Provisionnement idempotent : `bash infra/azure/deploy.sh` — runbook complet dans **[`infra/azure/README.md`](infra/azure/README.md)**.
+- Déploiement continu : `.github/workflows/cd.yml` déploie `main` vers cette infra (build image → ACR →
+  `containerapp update`, puis build + déploiement SWA). Inactif tant que la variable de dépôt
+  `AZURE_DEPLOY_ENABLED` n'est pas à `true`.
+
+> **Alternative AKS** (Terraform + Kubernetes, 3 environnements staging/preprod/prod, plus proche d'une
+> cible production mais avec un cluster à gérer) : décrite dans **[`infra/README.md`](infra/README.md)**.

@@ -7,7 +7,16 @@ Numérotation [SemVer](https://semver.org/lang/fr/) : majeur = rupture, mineur =
 ajout compatible, correctif = correction. Chaque étiquette est également publiée
 comme note de version GitHub. (BLOC 4, §5.2)
 
-## [1.5.0] — 12/08/2026
+## [2.0.0] — 07/09/2026
+### Nouvelles fonctionnalités
+- Vue d'ensemble multi-événements du tableau de bord organisateur : par événement, billets émis, revendus (marketplace) et transférés (dons), répartition par statut, et **recette** (somme des paiements simulés confirmés), avec une ligne de totaux (KAN-51, PR #— _à compléter à l'ouverture de la PR_)
+  → nouvel endpoint `GET /organizer/dashboard` (scopé à l'organisateur) et section « Vue d'ensemble » en tête de la page organisateur ; visible uniquement pour le rôle `organizer`
+### Améliorations
+- Rendu **mobile-first** de la vue d'ensemble organisateur : le tableau récapitulatif devient des **cartes empilées** sous 768px (la recette et la répartition ne sont plus masquées derrière un scroll horizontal) ; le tableau est conservé à l'identique sur desktop. Liste « Billets & historique » resserrée sur petits écrans.
+### Notes
+- Passage au **majeur 2.0.0** : jalon produit décidé par l'équipe. Aucune rupture d'API — l'ajout est rétrocompatible (SemVer stricto sensu : mineur), le numéro majeur marque l'importance de l'évolution.
+
+## [1.5.0] — 13/02/2026
 ### Nouvelles fonctionnalités
 - Mise en cache de la marketplace (Redis, TTL 30 s) avec invalidation à chaque mutation (#161)
 - Export CSV de l'historique de possession depuis le tableau de bord organisateur (#158)
@@ -20,7 +29,7 @@ comme note de version GitHub. (BLOC 4, §5.2)
 ### Sécurité
 - Analyse `npm audit` rendue bloquante dans la chaîne d'intégration (#163)
 
-## [1.4.2] — 31/07/2026
+## [1.4.2] — 30/01/2026
 ### Corrections de bogues
 - [AN-2026-021] Courriels de confirmation non reçus lors des pics : limiteur de débit sur le worker d'envoi (80/min), reprise exponentielle et rejeu automatique de la file (#154)
 - [AN-2026-019] Croissance continue de la mémoire du worker : détachement explicite des écouteurs d'événements en fin de tâche (#152)
@@ -29,9 +38,9 @@ comme note de version GitHub. (BLOC 4, §5.2)
 - Message d'interface après achat : « billet disponible immédiatement dans Mes billets, courriel de confirmation sous quelques minutes » (#156)
 ### Dépendances
 - Montée de Playwright vers la version majeure suivante (4 spécifications adaptées) (#150)
-- 11 correctifs de dépendances applicatives et de développement (lot Dependabot du 27/07)
+- 11 correctifs de dépendances applicatives et de développement (lot Dependabot du 24/01)
 
-## [1.4.1] — 10/07/2026 · correctif d'urgence
+## [1.4.1] — 10/01/2026 · correctif d'urgence
 ### Corrections de bogues
 - [AN-2026-017] Commandes payées non transférées sous charge (#147) : le webhook Stripe accuse désormais réception immédiatement après vérification de signature et enregistrement idempotent, puis délègue le transfert à un worker BullMQ (#148)
   → traitement du webhook p95 : 9,4 s → 0,18 s ; commandes orphelines : 12 → 0
@@ -40,7 +49,7 @@ comme note de version GitHub. (BLOC 4, §5.2)
 - Alertes ajoutées : saturation du pool (P3), commandes payées non transférées (P1)
 - Test d'intégration de charge : 40 webhooks concurrents (`webhook.concurrency.test.ts`)
 
-## [1.4.0] — 05/06/2026
+## [1.4.0] — 05/01/2026
 ### Nouvelles fonctionnalités
 - Supervision : sondes `/live`, `/ready`, `/health` et exposition `/metrics` (prom-client) (#131)
 - Tableaux de bord Grafana (santé, tunnel d'achat, files, dépendances tierces) (#134)

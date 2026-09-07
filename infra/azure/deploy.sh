@@ -144,7 +144,7 @@ if ! az containerapp show -n "$API_APP" -g "$RG" -o none 2>/dev/null; then
     --env-vars NODE_ENV=production PORT=3000 \
              DATABASE_URL=secretref:database-url REDIS_URL=secretref:redis-url \
              JWT_SECRET=secretref:jwt-secret JWT_REFRESH_SECRET=secretref:jwt-refresh-secret \
-             STRIPE_SECRET_KEY= CORS_ORIGIN="*" \
+             STRIPE_SECRET_KEY= FEATURE_STRIPE_CHECKOUT=false CORS_ORIGIN="*" \
     -o none
 else
   az containerapp secret set -n "$API_APP" -g "$RG" \

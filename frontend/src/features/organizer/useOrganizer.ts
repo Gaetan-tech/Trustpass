@@ -5,10 +5,20 @@ import type {
   EventRules,
   EventStats,
   EventSummary,
+  OrganizerDashboardResponse,
   OrganizerTicketSummary,
   TicketHistory,
   UpdateEventInput,
 } from '../../types/api';
+
+// GET /organizer/dashboard — vue d'ensemble multi-événements (recette & billets).
+export function useOrganizerDashboard(enabled: boolean) {
+  return useQuery({
+    queryKey: ['organizer', 'dashboard'],
+    enabled,
+    queryFn: () => api<OrganizerDashboardResponse>('/organizer/dashboard'),
+  });
+}
 
 // GET /organizer/events — événements de l'organisateur connecté.
 export function useMyEvents(enabled: boolean) {

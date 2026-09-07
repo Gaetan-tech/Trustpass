@@ -1,10 +1,22 @@
 import Stripe from 'stripe';
 import crypto from 'node:crypto';
 import { env } from '../config/env.js';
+import { logger } from './logger.js';
 
-// Client Stripe réel si clé fournie. Sinon, mode DEV simulé pour garder le
-// tunnel runnable sans compte Stripe (les PaymentIntent sont factices).
-export const stripeEnabled = env.STRIPE_SECRET_KEY.startsWith('sk_');
+// Feature flag : le paiement Stripe réel n'est actif que si le flag est activé
+// ET qu'une clé secrète valide est fournie. C'est ce qui permet de livrer la
+// fonctionnalité en prod tout en la laissant invisible tant qu'on ne l'active pas.
+// Sinon (flag OFF ou clé absente) → mode simulé (PaymentIntent factices).
+const hasSecretKey = env.STRIPE_SECRET_KEY.startsWith('sk_');
+export const stripeEnabled = env.FEATURE_STRIPE_CHECKOUT && hasSecretKey;
+
+if (env.FEATURE_STRIPE_CHECKOUT && !hasSecretKey) {
+  // Garde-fou : flag activé sans clé → on reste en mode simulé plutôt que de casser
+  // le tunnel d'achat. À corriger en fournissant STRIPE_SECRET_KEY (sk_...).
+  logger.warn(
+    'FEATURE_STRIPE_CHECKOUT est activé mais STRIPE_SECRET_KEY est absente/invalide — le paiement reste en mode simulé.',
+  );
+}
 
 // Pas d'apiVersion figée ici : on laisse la version par défaut du compte pour
 // éviter un couplage fort avec la version des types @types/stripe.

@@ -138,6 +138,32 @@ export interface OrganizerTicketSummary {
   transfersCount: number;
 }
 
+// Vue d'ensemble multi-événements du dashboard organisateur (KAN-51).
+export type TicketStatusKey = 'owned' | 'listed' | 'reserved' | 'sold' | 'used' | 'invalidated';
+
+export interface OrganizerDashboardRow {
+  eventId: string;
+  name: string;
+  venue?: string;
+  startsAt: string;
+  ticketsIssued: number;
+  ticketsResold: number; // reventes marketplace finalisées
+  ticketsTransferred: number; // dons nominatifs (hors marketplace)
+  revenue: number; // centimes (paiements simulés confirmés)
+  statusBreakdown: Record<TicketStatusKey, number>;
+}
+
+export interface OrganizerDashboardResponse {
+  data: OrganizerDashboardRow[];
+  totals: {
+    events: number;
+    ticketsIssued: number;
+    ticketsResold: number;
+    ticketsTransferred: number;
+    revenue: number;
+  };
+}
+
 export interface CreateEventInput {
   name: string;
   venue?: string;
