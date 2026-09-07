@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  useOrganizerDashboard,
   useMyEvents,
   useEventStats,
   useEventRulesFor,
@@ -19,7 +20,7 @@ import { formatPrice } from '../lib/format';
 import { ApiRequestError } from '../lib/api';
 import { HistoryTimeline } from '../components/HistoryTimeline';
 import { fileToCompressedDataUrl } from '../lib/image';
-import type { EventSummary } from '../types/api';
+import type { EventSummary, OrganizerDashboardRow, TicketStatusKey } from '../types/api';
 
 // Convertit une date ISO (UTC) en valeur pour <input type="datetime-local"> (heure locale).
 function toLocalInput(iso: string): string {
@@ -61,6 +62,8 @@ export function OrganizerDashboardPage() {
   return (
     <section className="mx-auto max-w-6xl px-5 py-10">
       <h1 className="mb-6 text-2xl font-bold">Dashboard organisateur</h1>
+
+      <DashboardOverview onSelect={setSelected} />
 
       <CreateEventCard onCreated={(id) => setSelected(id)} />
 
@@ -111,6 +114,171 @@ export function OrganizerDashboardPage() {
         <ControllersCard />
       </div>
     </section>
+  );
+}
+
+// Libellés FR courts par statut de billet (répartition compacte).
+const STATUS_LABEL: Record<TicketStatusKey, string> = {
+  owned: 'détenu',
+  listed: 'en vente',
+  reserved: 'réservé',
+  sold: 'vendu',
+  used: 'utilisé',
+  invalidated: 'invalidé',
+};
+
+// KAN-51 — vue d'ensemble de tous les événements de l'organisateur : recette et
+// suivi des billets (émis / revendus / transférés) + répartition par statut.
+function DashboardOverview({ onSelect }: { onSelect: (id: string) => void }) {
+  const dashboard = useOrganizerDashboard(true);
+
+  if (dashboard.isLoading) {
+    return <p className="mb-6 text-slate-500">Chargement de la vue d'ensemble…</p>;
+  }
+
+  const rows = dashboard.data?.data ?? [];
+  const totals = dashboard.data?.totals;
+  if (rows.length === 0) return null; // rien à résumer tant qu'aucun événement n'existe
+
+  return (
+    <section className="mb-8" aria-labelledby="overview-title">
+      <h2 id="overview-title" className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">
+        Vue d'ensemble
+      </h2>
+
+      {totals && (
+        <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <StatCard label="Événements" value={String(totals.events)} i={0} />
+          <StatCard label="Billets émis" value={String(totals.ticketsIssued)} i={1} />
+          <StatCard label="Revendus / transférés" value={`${totals.ticketsResold} / ${totals.ticketsTransferred}`} i={2} />
+          <StatCard label="Recette totale" value={formatPrice(totals.revenue)} i={3} />
+        </div>
+      )}
+
+      {/* Mobile (< md) : une carte empilée par événement (pas de scroll horizontal). */}
+      <div className="space-y-3 md:hidden">
+        {rows.map((r) => (
+          <button
+            key={r.eventId}
+            type="button"
+            onClick={() => onSelect(r.eventId)}
+            className="block w-full rounded-2xl glass p-4 text-left"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 truncate font-semibold text-slate-800">{r.name}</span>
+              <span className="shrink-0 font-bold tabular-nums text-neon">{formatPrice(r.revenue)}</span>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {new Date(r.startsAt).toLocaleDateString('fr-FR')}
+              {r.venue ? ` · ${r.venue}` : ''}
+            </p>
+            <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <Metric label="Émis" value={r.ticketsIssued} />
+              <Metric label="Revendus" value={r.ticketsResold} />
+              <Metric label="Transférés" value={r.ticketsTransferred} />
+            </dl>
+            <div className="mt-3">
+              <StatusBreakdown breakdown={r.statusBreakdown} />
+            </div>
+          </button>
+        ))}
+        {totals && (
+          <div className="rounded-2xl border-2 border-slate-300/50 bg-white/50 p-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-semibold text-slate-800">Total</span>
+              <span className="font-bold tabular-nums text-neon">{formatPrice(totals.revenue)}</span>
+            </div>
+            <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <Metric label="Émis" value={totals.ticketsIssued} />
+              <Metric label="Revendus" value={totals.ticketsResold} />
+              <Metric label="Transférés" value={totals.ticketsTransferred} />
+            </dl>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop (≥ md) : tableau récapitulatif (rendu d'origine). */}
+      <div className="hidden overflow-x-auto rounded-2xl glass md:block">
+        <table className="w-full min-w-[720px] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-slate-200/50 text-left text-[11px] uppercase tracking-wider text-slate-500">
+              <th className="px-4 py-3 font-semibold">Événement</th>
+              <th className="px-3 py-3 text-right font-semibold">Émis</th>
+              <th className="px-3 py-3 text-right font-semibold">Revendus</th>
+              <th className="px-3 py-3 text-right font-semibold">Transférés</th>
+              <th className="px-3 py-3 font-semibold">Répartition</th>
+              <th className="px-4 py-3 text-right font-semibold">Recette</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr
+                key={r.eventId}
+                onClick={() => onSelect(r.eventId)}
+                className="cursor-pointer border-b border-slate-200/30 transition-colors hover:bg-white/40"
+              >
+                <td className="px-4 py-3">
+                  <span className="font-medium text-slate-800">{r.name}</span>
+                  <span className="block text-xs text-slate-500">
+                    {new Date(r.startsAt).toLocaleDateString('fr-FR')}
+                    {r.venue ? ` · ${r.venue}` : ''}
+                  </span>
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums">{r.ticketsIssued}</td>
+                <td className="px-3 py-3 text-right tabular-nums">{r.ticketsResold}</td>
+                <td className="px-3 py-3 text-right tabular-nums">{r.ticketsTransferred}</td>
+                <td className="px-3 py-3">
+                  <StatusBreakdown breakdown={r.statusBreakdown} />
+                </td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums text-neon">
+                  {formatPrice(r.revenue)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          {totals && (
+            <tfoot>
+              <tr className="border-t-2 border-slate-300/50 font-semibold">
+                <td className="px-4 py-3">Total</td>
+                <td className="px-3 py-3 text-right tabular-nums">{totals.ticketsIssued}</td>
+                <td className="px-3 py-3 text-right tabular-nums">{totals.ticketsResold}</td>
+                <td className="px-3 py-3 text-right tabular-nums">{totals.ticketsTransferred}</td>
+                <td className="px-3 py-3" />
+                <td className="px-4 py-3 text-right tabular-nums text-neon">{formatPrice(totals.revenue)}</td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </section>
+  );
+}
+
+// Paire label/valeur des cartes récap mobile.
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <dt className="text-[10px] uppercase tracking-wider text-slate-500">{label}</dt>
+      <dd className="mt-0.5 text-lg font-bold tabular-nums text-slate-800">{value}</dd>
+    </div>
+  );
+}
+
+// Répartition compacte des statuts d'un événement : n'affiche que les non-nuls.
+function StatusBreakdown({ breakdown }: { breakdown: OrganizerDashboardRow['statusBreakdown'] }) {
+  const entries = (Object.entries(breakdown) as [TicketStatusKey, number][]).filter(([, n]) => n > 0);
+  if (entries.length === 0) return <span className="text-xs text-slate-400">—</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {entries.map(([status, n]) => (
+        <span
+          key={status}
+          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_CHIP[status] ?? 'border-slate-300 bg-slate-100 text-slate-500'}`}
+        >
+          {STATUS_LABEL[status]} · {n}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -582,7 +750,7 @@ function EventTicketsCard({ eventId }: { eventId: string }) {
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 <StatusChip status={t.status} />
-                <span className="text-xs text-slate-400">{t.transfersCount} transfert(s)</span>
+                <span className="hidden text-xs text-slate-400 sm:inline">{t.transfersCount} transfert(s)</span>
                 <span className="text-slate-400">{openTicket === t.id ? '▲' : '▼'}</span>
               </span>
             </button>

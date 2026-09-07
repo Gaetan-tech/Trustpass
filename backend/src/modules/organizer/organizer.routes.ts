@@ -31,6 +31,14 @@ organizerRoutes.delete(
   }),
 );
 
+// Vue d'ensemble multi-événements (KAN-51) : recette & suivi des billets.
+organizerRoutes.get(
+  '/dashboard',
+  asyncHandler(async (req: Request, res: Response) => {
+    res.status(200).json(await organizerService.dashboard(req.user!.id));
+  }),
+);
+
 organizerRoutes.get(
   '/events',
   asyncHandler(async (req: Request, res: Response) => {
