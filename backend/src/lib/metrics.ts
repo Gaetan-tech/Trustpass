@@ -59,10 +59,30 @@ const promTransferDelay = new client.Histogram({
   registers: [registry],
 });
 
+const promSales = new client.Counter({
+  name: 'trustpass_sales_total',
+  help: 'Ventes finalisées (billet transféré après paiement confirmé)',
+  registers: [registry],
+});
+const promSalesRevenue = new client.Counter({
+  name: 'trustpass_sales_revenue_cents_total',
+  help: 'Recette cumulée des ventes finalisées, en centimes',
+  registers: [registry],
+});
+const promErrors = new client.Counter({
+  name: 'trustpass_errors_total',
+  help: 'Erreurs applicatives renvoyées par l’API, par code et statut HTTP',
+  labelNames: ['code', 'status'] as const,
+  registers: [registry],
+});
+
 const otelCheckout = meter.createCounter('trustpass_checkout_total', { description: 'Résultat du tunnel d’achat' });
 const otelWebhook = meter.createCounter('trustpass_webhook_events_total', { description: 'Traitement des webhooks Stripe' });
 const otelEmail = meter.createCounter('trustpass_email_send_total', { description: 'Résultat des envois de courriels' });
 const otelTransferDelay = meter.createHistogram('trustpass_transfer_delay_seconds', { description: 'Délai paiement → billet', unit: 's' });
+const otelSales = meter.createCounter('trustpass_sales_total', { description: 'Ventes finalisées' });
+const otelSalesRevenue = meter.createCounter('trustpass_sales_revenue_cents_total', { description: 'Recette cumulée (centimes)', unit: 'By' });
+const otelErrors = meter.createCounter('trustpass_errors_total', { description: 'Erreurs applicatives par code et statut' });
 
 export function recordCheckout(result: 'success' | 'failed'): void {
   promCheckout.inc({ result });
@@ -79,6 +99,24 @@ export function recordEmail(result: 'ok' | 'error'): void {
 export function recordTransferDelay(seconds: number): void {
   promTransferDelay.observe(seconds);
   otelTransferDelay.record(seconds);
+}
+
+// Une vente finalisée (transfert de propriété exécuté après paiement confirmé),
+// quel que soit le chemin — webhook Stripe ou paiement simulé. `amountCents` alimente
+// la recette cumulée. Émis vers Prometheus (/metrics) ET App Insights (OTel).
+export function recordSale(amountCents: number): void {
+  promSales.inc();
+  promSalesRevenue.inc(amountCents);
+  otelSales.add(1);
+  otelSalesRevenue.add(amountCents);
+}
+
+// Une erreur applicative renvoyée par l'API. Labellisée par code métier + statut HTTP
+// pour tracer d'où vient le problème (dashboards / alertes par code).
+export function recordError(code: string, status: number): void {
+  const labels = { code, status: String(status) };
+  promErrors.inc(labels);
+  otelErrors.add(1, labels);
 }
 
 // --- Jauges métier (calculées à la lecture, résilientes) ---------------------
