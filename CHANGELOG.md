@@ -13,6 +13,7 @@ comme note de version GitHub. (BLOC 4, §5.2)
   → nouvel endpoint `GET /organizer/dashboard` (scopé à l'organisateur) et section « Vue d'ensemble » en tête de la page organisateur ; visible uniquement pour le rôle `organizer`
 ### Améliorations
 - Rendu **mobile-first** de la vue d'ensemble organisateur : le tableau récapitulatif devient des **cartes empilées** sous 768px (la recette et la répartition ne sont plus masquées derrière un scroll horizontal) ; le tableau est conservé à l'identique sur desktop. Liste « Billets & historique » resserrée sur petits écrans.
+- Observabilité : nouvelles métriques (Prometheus `/metrics` + Application Insights) `trustpass_sales_total` et `trustpass_sales_revenue_cents_total` — **chaque vente finalisée** est comptée quel que soit le chemin (webhook ou paiement simulé) — et `trustpass_errors_total{code,status}` avec l'exception attachée à la trace OTel sur les 500, pour tracer l'origine des erreurs backend.
 ### Notes
 - Passage au **majeur 2.0.0** : jalon produit décidé par l'équipe. Aucune rupture d'API — l'ajout est rétrocompatible (SemVer stricto sensu : mineur), le numéro majeur marque l'importance de l'évolution.
 

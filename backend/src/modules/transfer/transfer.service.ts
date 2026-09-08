@@ -3,6 +3,7 @@ import { generateQr, generateReference } from '../../lib/qr.js';
 import { writeAudit } from '../../lib/audit.js';
 import { releaseReservation } from '../orders/reservation.js';
 import { enqueueEmail } from '../notifications/notifications.service.js';
+import { recordSale } from '../../lib/metrics.js';
 
 // Transfert de propriété atomique après paiement confirmé (US-5.1).
 // Invariant (ADR-002/003) : tout se fait dans UNE transaction, ou rien.
@@ -68,6 +69,10 @@ export async function executeTransfer(orderId: string): Promise<void> {
   });
 
   if (!notify) return;
+
+  // Vente finalisée : compteur + recette (idempotent — n'arrive qu'une fois par
+  // commande, quel que soit le chemin : webhook Stripe ou paiement simulé).
+  recordSale(notify.amount);
 
   // Emails transactionnels (hors transaction, best-effort).
   const [buyer, seller] = await Promise.all([
