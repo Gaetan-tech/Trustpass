@@ -9,7 +9,7 @@ comme note de version GitHub. (BLOC 4, §5.2)
 
 ## [2.0.0] — 07/09/2026
 ### Nouvelles fonctionnalités
-- Vue d'ensemble multi-événements du tableau de bord organisateur : par événement, billets émis, revendus (marketplace) et transférés (dons), répartition par statut, et **recette** (somme des paiements simulés confirmés), avec une ligne de totaux (KAN-51, PR #— _à compléter à l'ouverture de la PR_)
+- Vue d'ensemble multi-événements du tableau de bord organisateur : par événement, billets émis, revendus (marketplace) et transférés (dons), répartition par statut, et **recette** (somme des paiements simulés confirmés), avec une ligne de totaux (KAN-51, #46)
   → nouvel endpoint `GET /organizer/dashboard` (scopé à l'organisateur) et section « Vue d'ensemble » en tête de la page organisateur ; visible uniquement pour le rôle `organizer`
 ### Améliorations
 - Rendu **mobile-first** de la vue d'ensemble organisateur : le tableau récapitulatif devient des **cartes empilées** sous 768px (la recette et la répartition ne sont plus masquées derrière un scroll horizontal) ; le tableau est conservé à l'identique sur desktop. Liste « Billets & historique » resserrée sur petits écrans.
