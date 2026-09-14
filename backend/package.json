@@ -27,7 +27,7 @@
     "@azure/monitor-opentelemetry": "^1.19.0",
     "@opentelemetry/api": "^1.9.1",
     "@prisma/client": "^5.20.0",
-    "argon2": "^0.41.1",
+    "argon2": "^0.45.1",
     "bullmq": "^6.3.4",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
