@@ -37,7 +37,7 @@ jobs:
       SWA_NAME: ${{ vars.SWA_NAME }}
       TAG: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Connexion Azure (OIDC)
         uses: azure/login@v2
